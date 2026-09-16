@@ -16,6 +16,8 @@ export class ApiError extends Error {
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
+  /** Query string parameters; undefined values are omitted. */
+  params?: Record<string, string | number | undefined>;
   /** Attach the current access token as a Bearer header. Defaults to true. */
   auth?: boolean;
   /** Internal: prevents the 401 refresh flow from retrying itself forever. */
@@ -78,11 +80,28 @@ async function parseErrorBody(
   }
 }
 
+function buildQuery(params: RequestOptions['params']): string {
+  if (!params) return '';
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) search.set(key, String(value));
+  }
+  const query = search.toString();
+  return query ? `?${query}` : '';
+}
+
 async function request<T>(
   path: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { body, auth = true, skipRefresh = false, headers, ...rest } = options;
+  const {
+    body,
+    params,
+    auth = true,
+    skipRefresh = false,
+    headers,
+    ...rest
+  } = options;
 
   const requestHeaders = new Headers(headers);
   requestHeaders.set('Content-Type', 'application/json');
@@ -93,7 +112,7 @@ async function request<T>(
     }
   }
 
-  const response = await fetch(`${env.apiUrl}${path}`, {
+  const response = await fetch(`${env.apiUrl}${path}${buildQuery(params)}`, {
     ...rest,
     headers: requestHeaders,
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -128,4 +147,8 @@ export const httpClient = {
     request<T>(path, { ...options, method: 'GET' }),
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>(path, { ...options, method: 'POST', body }),
+  patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    request<T>(path, { ...options, method: 'PATCH', body }),
+  delete: <T>(path: string, options?: RequestOptions) =>
+    request<T>(path, { ...options, method: 'DELETE' }),
 };

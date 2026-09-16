@@ -1,54 +1,19 @@
-'use client';
+import { AppHeader } from '@/widgets/app-header';
+import { TransactionsTable } from '@/widgets/transactions-table';
+import { AddTransactionButton } from '@/features/transaction/upsert';
+import { AuthGuard } from '@/entities/session';
 
-import Link from 'next/link';
-import { useSessionStore } from '@/entities/session';
-import { authApi } from '@/shared/api/auth-api';
-import { Button } from '@/shared/ui';
-
-export default function Home() {
-  const user = useSessionStore((state) => state.user);
-  const refreshToken = useSessionStore((state) => state.refreshToken);
-  const hasHydrated = useSessionStore((state) => state.hasHydrated);
-  const clearSession = useSessionStore((state) => state.clearSession);
-
-  async function handleLogout() {
-    if (refreshToken) {
-      try {
-        await authApi.logout({ refreshToken });
-      } catch {
-        // best-effort: clear the local session regardless of API outcome
-      }
-    }
-    clearSession();
-  }
-
-  if (!hasHydrated) {
-    return <main className="min-h-screen" />;
-  }
-
+export default function HomePage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-24">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Expense Tracker</h1>
-        <p className="text-gray-600">Your personal finance management tool</p>
-      </div>
-      {user ? (
-        <div className="flex flex-col items-center gap-3">
-          <p>Welcome, {user.name}</p>
-          <Button variant="outline" onClick={handleLogout}>
-            Log out
-          </Button>
+    <AuthGuard>
+      <AppHeader />
+      <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold">Transactions</h1>
+          <AddTransactionButton />
         </div>
-      ) : (
-        <div className="flex gap-3">
-          <Button asChild>
-            <Link href="/login">Log in</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/register">Register</Link>
-          </Button>
-        </div>
-      )}
-    </main>
+        <TransactionsTable />
+      </main>
+    </AuthGuard>
   );
 }
