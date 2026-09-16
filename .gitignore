@@ -44,9 +44,6 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
-# Prisma
-apps/api/prisma/migrations/
-
 # Docker
 docker/*.env
 

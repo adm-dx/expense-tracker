@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 This is an npm workspaces monorepo for an expense tracking application with:
+
 - **Frontend**: Next.js 15 with App Router, React 19, TypeScript (strict), Tailwind CSS
 - **Backend**: NestJS 11, Prisma ORM, TypeScript (strict)
 - **Database**: PostgreSQL 16 (via Docker Compose)
@@ -102,7 +103,7 @@ npm install
 The project uses npm workspaces to share code between frontend and backend:
 
 - **apps/web**: Next.js frontend application
-- **apps/api**: NestJS backend application  
+- **apps/api**: NestJS backend application
 - **packages/types**: Shared TypeScript types imported by both apps
 - **packages/config**: Shared configuration files (ESLint, Prettier, TypeScript base config)
 
@@ -111,6 +112,7 @@ Both apps reference `@expense-tracker/types` for type safety across the stack.
 ### TypeScript Configuration
 
 All packages use **strict mode** TypeScript with these additional checks:
+
 - `noUncheckedIndexedAccess: true`
 - `noImplicitOverride: true`
 - `exactOptionalPropertyTypes: true`
@@ -120,6 +122,7 @@ The base TypeScript config is in `packages/config/tsconfig.base.json`. Individua
 ### Backend Architecture (NestJS)
 
 The API follows NestJS module structure:
+
 - `src/main.ts`: Application entry point (port 3001, CORS enabled for frontend)
 - `src/app.module.ts`: Root module that imports feature modules
 - `src/prisma/`: Global Prisma module for database access
@@ -128,21 +131,36 @@ The API follows NestJS module structure:
 - `src/modules/`: Feature modules go here (currently empty)
 
 **Prisma conventions:**
+
 - Schema location: `apps/api/prisma/schema.prisma`
 - Client output: `apps/api/node_modules/.prisma/client`
 - Models use `cuid()` for IDs
 - Relations have proper cascade deletes and indexes
 - Decimal fields for currency amounts
 
-### Frontend Architecture (Next.js)
+### Frontend Architecture (Next.js + Feature-Sliced Design)
 
-The web app uses Next.js 15 App Router:
-- `src/app/`: App Router directory (layouts, pages, route handlers)
-- `src/components/`: Reusable React components
-- `src/lib/`: Utility functions and helpers
-- `src/app/globals.css`: Tailwind CSS directives
+The web app uses Next.js 15 App Router as the routing shell, with everything else under `src/` organized by **Feature-Sliced Design (FSD)**. Layers, from lowest to highest:
+
+- `src/shared/`: framework-agnostic building blocks with no business logic.
+  - `shared/ui/`: shadcn/ui primitives (generated via `npx shadcn@latest add <name>`, see below) plus a hand-written `index.ts` barrel. Don't hand-edit generated primitives beyond intentional customization.
+  - `shared/api/`: generic HTTP client (`http-client.ts`) and thin per-domain endpoint wrappers (e.g. `auth-api.ts`). The HTTP client itself must stay dependency-free from other layers — it exposes a `configureHttpClient(hooks)` seam so an `entities/*` slice can wire it to a store, instead of importing that store directly.
+  - `shared/lib/`: small framework-agnostic helpers (`cn`, error formatting).
+  - `shared/config/`: env var access.
+  - Unlike the layers below, `shared` has no business "slices" — its segments (`ui`, `api`, `lib`, `config`) may freely reference each other.
+- `src/entities/`: business objects and their own state, e.g. `entities/session` (the Zustand auth-session store, hydration, and the one call to `configureHttpClient`). May import `shared` only.
+- `src/features/`: user actions/use-cases, e.g. `features/auth/login` and `features/auth/register` (form + validation schema + submit hook per sub-module). May import `entities`, `shared`.
+- `src/widgets/`: composite UI blocks assembled from multiple features/entities. Not created until a feature actually needs one — don't add an empty layer speculatively.
+- `src/app/`: Next.js routing layer (this _is_ FSD's "pages" layer here — there is no separate `src/pages` folder). Route files stay thin: they compose `widgets`/`features`/`entities`/`shared` and add layout/metadata. May import any lower layer.
+
+**Import direction rule:** `shared → entities → features → widgets → app`, imports only flow "up" this list — never sideways within the same layer, never downward. Each slice exposes its public surface via `index.ts`; don't deep-import another slice's internals. One documented exception: `app/login/page.tsx` and `app/register/page.tsx` import directly from `features/auth/login` and `features/auth/register` rather than through a single `features/auth` barrel, since those two sub-modules are independent entry points with no shared barrel worth adding.
+
+**Client-persisted state:** any store that persists to `localStorage` (via Zustand's `persist` middleware) must use `skipHydration: true` + an explicit `hasHydrated` flag flipped in `onRehydrateStorage`, with a dedicated client component calling `store.persist.rehydrate()` once (mounted in root layout). This avoids SSR/localStorage hydration mismatches — see `entities/session` for the reference implementation.
+
+**shadcn/ui setup:** `components.json` aliases point `ui`/`components` at `@/shared/ui` and `utils`/`lib` at `@/shared/lib`, so `npx shadcn@latest add <name>` lands new primitives directly in the FSD `shared` layer. The project is pinned to Tailwind v3 — if a future `shadcn` CLI run offers to upgrade Tailwind to v4 or rewrite `globals.css` to `@import "tailwindcss"` syntax, decline it and add components manually instead.
 
 **Next.js configuration:**
+
 - `transpilePackages: ['@expense-tracker/types']` enables monorepo package usage
 - `reactStrictMode: true` for development checks
 
