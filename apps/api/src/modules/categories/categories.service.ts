@@ -10,6 +10,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 const UNIQUE_CONSTRAINT_VIOLATION = 'P2002';
+const FOREIGN_KEY_VIOLATION = 'P2003';
 
 @Injectable()
 export class CategoriesService {
@@ -63,7 +64,19 @@ export class CategoriesService {
 
   async remove(userId: string, id: string): Promise<void> {
     await this.findOwned(userId, id);
-    await this.categoriesRepository.delete(id);
+    try {
+      await this.categoriesRepository.delete(id);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === FOREIGN_KEY_VIOLATION
+      ) {
+        throw new ConflictException(
+          'Category has transactions and cannot be deleted'
+        );
+      }
+      throw error;
+    }
   }
 
   toPublic(category: Category): PublicCategory {

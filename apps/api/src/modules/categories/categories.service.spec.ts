@@ -154,5 +154,19 @@ describe('CategoriesService', () => {
 
       expect(repository.delete).toHaveBeenCalledWith('cat-1');
     });
+
+    it('maps a P2003 foreign key violation to ConflictException', async () => {
+      repository.findByIdForUser.mockResolvedValue(makeCategory() as never);
+      repository.delete.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('has transactions', {
+          code: 'P2003',
+          clientVersion: '6.19.3',
+        })
+      );
+
+      await expect(service.remove('user-1', 'cat-1')).rejects.toBeInstanceOf(
+        ConflictException
+      );
+    });
   });
 });
