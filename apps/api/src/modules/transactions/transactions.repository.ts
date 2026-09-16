@@ -9,6 +9,11 @@ export interface TransactionFilters {
   categoryId?: string;
 }
 
+export interface TransactionPagination {
+  skip: number;
+  take: number;
+}
+
 export interface TransactionSumRow {
   type: TransactionType;
   categoryId: string;
@@ -19,23 +24,22 @@ export interface TransactionSumRow {
 export class TransactionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findManyByUser(
+  async findManyByUser(
     userId: string,
-    filters: TransactionFilters
-  ): Promise<Transaction[]> {
-    const where: Prisma.TransactionWhereInput = { userId };
-    if (filters.type) where.type = filters.type;
-    if (filters.categoryId) where.categoryId = filters.categoryId;
-    if (filters.dateFrom || filters.dateTo) {
-      const date: Prisma.DateTimeFilter = {};
-      if (filters.dateFrom) date.gte = filters.dateFrom;
-      if (filters.dateTo) date.lte = filters.dateTo;
-      where.date = date;
-    }
-    return this.prisma.transaction.findMany({
-      where,
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-    });
+    filters: TransactionFilters,
+    pagination: TransactionPagination
+  ): Promise<{ items: Transaction[]; total: number }> {
+    const where = this.buildWhere(userId, filters);
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.transaction.findMany({
+        where,
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      this.prisma.transaction.count({ where }),
+    ]);
+    return { items, total };
   }
 
   findByIdForUser(id: string, userId: string): Promise<Transaction | null> {
@@ -80,5 +84,21 @@ export class TransactionsRepository {
       categoryId: group.categoryId,
       amount: group._sum.amount ?? new Prisma.Decimal(0),
     }));
+  }
+
+  private buildWhere(
+    userId: string,
+    filters: TransactionFilters
+  ): Prisma.TransactionWhereInput {
+    const where: Prisma.TransactionWhereInput = { userId };
+    if (filters.type) where.type = filters.type;
+    if (filters.categoryId) where.categoryId = filters.categoryId;
+    if (filters.dateFrom || filters.dateTo) {
+      const date: Prisma.DateTimeFilter = {};
+      if (filters.dateFrom) date.gte = filters.dateFrom;
+      if (filters.dateTo) date.lte = filters.dateTo;
+      where.date = date;
+    }
+    return where;
   }
 }

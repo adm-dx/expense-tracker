@@ -4,6 +4,8 @@ import * as bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
 import { UserLoggedInEvent } from './contracts';
+import { CreateUserCommand } from '../users/contracts';
+import { CreateDefaultCategoriesCommand } from '../categories/contracts';
 
 const FIXED_DATE = new Date('2026-01-01T00:00:00.000Z');
 
@@ -42,8 +44,10 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('creates the user via CreateUserCommand and issues tokens', async () => {
-      commandBus.execute.mockResolvedValue(makePublicUser());
+    it('creates the user with default categories and issues tokens', async () => {
+      commandBus.execute
+        .mockResolvedValueOnce(makePublicUser())
+        .mockResolvedValueOnce(undefined);
 
       const result = await service.register({
         name: 'Jane',
@@ -51,7 +55,14 @@ describe('AuthService', () => {
         password: 'super-secret',
       });
 
-      expect(commandBus.execute).toHaveBeenCalledTimes(1);
+      expect(commandBus.execute).toHaveBeenCalledTimes(2);
+      expect(commandBus.execute.mock.calls[0]?.[0]).toBeInstanceOf(
+        CreateUserCommand,
+      );
+      expect(commandBus.execute).toHaveBeenNthCalledWith(
+        2,
+        new CreateDefaultCategoriesCommand('user-1'),
+      );
       expect(tokenService.issueTokens).toHaveBeenCalledWith(makePublicUser());
       expect(result).toEqual({
         accessToken: 'access',

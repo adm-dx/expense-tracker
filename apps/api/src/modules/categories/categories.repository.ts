@@ -22,6 +22,13 @@ export class CategoriesRepository {
     return this.prisma.category.create({ data });
   }
 
+  async createMany(
+    data: Prisma.CategoryCreateManyInput[]
+  ): Promise<void> {
+    // skipDuplicates relies on the (userId, name) unique key, so reruns are no-ops.
+    await this.prisma.category.createMany({ data, skipDuplicates: true });
+  }
+
   update(id: string, data: Prisma.CategoryUpdateInput): Promise<Category> {
     return this.prisma.category.update({ where: { id }, data });
   }

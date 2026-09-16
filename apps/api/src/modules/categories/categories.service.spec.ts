@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CategoriesService } from './categories.service';
 import { CategoriesRepository } from './categories.repository';
+import { DEFAULT_CATEGORIES } from './default-categories';
 
 function makeCategory(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -32,6 +33,7 @@ describe('CategoriesService', () => {
       findManyByUser: jest.fn(),
       findByIdForUser: jest.fn(),
       create: jest.fn(),
+      createMany: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
     } as unknown as jest.Mocked<CategoriesRepository>;
@@ -134,6 +136,21 @@ describe('CategoriesService', () => {
       await expect(
         service.update('user-1', 'cat-1', { name: 'Taken' })
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('createDefaults', () => {
+    it('creates the default set for the user', async () => {
+      repository.createMany.mockResolvedValue(undefined);
+
+      await service.createDefaults('user-1');
+
+      const [data] = repository.createMany.mock.calls[0] ?? [];
+      expect(data).toHaveLength(DEFAULT_CATEGORIES.length);
+      expect(data?.every((c) => c.userId === 'user-1')).toBe(true);
+      expect(data?.map((c) => c.name)).toEqual(
+        DEFAULT_CATEGORIES.map((c) => c.name)
+      );
     });
   });
 

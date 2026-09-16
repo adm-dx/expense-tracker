@@ -50,7 +50,10 @@ describe('TransactionsService', () => {
 
   describe('list', () => {
     it('passes parsed filters to the repository and hides userId', async () => {
-      repository.findManyByUser.mockResolvedValue([makeTransaction()] as never);
+      repository.findManyByUser.mockResolvedValue({
+        items: [makeTransaction()],
+        total: 1,
+      } as never);
 
       const result = await service.list('user-1', {
         dateFrom: '2026-09-01',
@@ -58,13 +61,44 @@ describe('TransactionsService', () => {
         type: TransactionType.EXPENSE,
       });
 
-      expect(repository.findManyByUser).toHaveBeenCalledWith('user-1', {
-        dateFrom: new Date('2026-09-01'),
-        dateTo: new Date('2026-09-30'),
-        type: TransactionType.EXPENSE,
-      });
-      expect(result[0]).not.toHaveProperty('userId');
-      expect(result[0]?.amount).toBe('12.50');
+      expect(repository.findManyByUser).toHaveBeenCalledWith(
+        'user-1',
+        {
+          dateFrom: new Date('2026-09-01'),
+          dateTo: new Date('2026-09-30'),
+          type: TransactionType.EXPENSE,
+        },
+        { skip: 0, take: 10 }
+      );
+      expect(result.items[0]).not.toHaveProperty('userId');
+      expect(result.items[0]?.amount).toBe('12.50');
+    });
+
+    it('defaults to the first page of 10 and echoes pagination', async () => {
+      repository.findManyByUser.mockResolvedValue({
+        items: [],
+        total: 0,
+      } as never);
+
+      const result = await service.list('user-1', {});
+
+      expect(result).toEqual({ items: [], total: 0, page: 1, pageSize: 10 });
+    });
+
+    it('translates page and pageSize into skip and take', async () => {
+      repository.findManyByUser.mockResolvedValue({
+        items: [makeTransaction()],
+        total: 45,
+      } as never);
+
+      const result = await service.list('user-1', { page: 3, pageSize: 20 });
+
+      expect(repository.findManyByUser).toHaveBeenCalledWith(
+        'user-1',
+        {},
+        { skip: 40, take: 20 }
+      );
+      expect(result).toMatchObject({ total: 45, page: 3, pageSize: 20 });
     });
 
     it('throws BadRequestException when dateFrom is after dateTo', async () => {

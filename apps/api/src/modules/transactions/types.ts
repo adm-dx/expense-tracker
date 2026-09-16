@@ -10,6 +10,13 @@ export interface PublicTransaction {
   createdAt: Date;
 }
 
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface TransactionCategorySummary {
   categoryId: string;
   name: string;

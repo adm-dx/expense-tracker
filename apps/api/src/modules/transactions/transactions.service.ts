@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, Transaction, TransactionType } from '@prisma/client';
 import {
+  PaginatedResponse,
   PublicTransaction,
   TransactionCategorySummary,
   TransactionSummary,
@@ -15,7 +16,10 @@ import {
 } from './transactions.repository';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
-import { ListTransactionsQuery } from './dto/list-transactions.query';
+import {
+  DEFAULT_TRANSACTION_PAGE_SIZE,
+  ListTransactionsQuery,
+} from './dto/list-transactions.query';
 
 const FOREIGN_KEY_VIOLATION = 'P2003';
 
@@ -28,7 +32,7 @@ export class TransactionsService {
   async list(
     userId: string,
     query: ListTransactionsQuery
-  ): Promise<PublicTransaction[]> {
+  ): Promise<PaginatedResponse<PublicTransaction>> {
     const filters: TransactionFilters = {};
     if (query.dateFrom) filters.dateFrom = new Date(query.dateFrom);
     if (query.dateTo) filters.dateTo = new Date(query.dateTo);
@@ -43,11 +47,19 @@ export class TransactionsService {
       throw new BadRequestException('dateFrom must not be after dateTo');
     }
 
-    const transactions = await this.transactionsRepository.findManyByUser(
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? DEFAULT_TRANSACTION_PAGE_SIZE;
+    const { items, total } = await this.transactionsRepository.findManyByUser(
       userId,
-      filters
+      filters,
+      { skip: (page - 1) * pageSize, take: pageSize }
     );
-    return transactions.map((transaction) => this.toPublic(transaction));
+    return {
+      items: items.map((transaction) => this.toPublic(transaction)),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async get(userId: string, id: string): Promise<PublicTransaction> {
