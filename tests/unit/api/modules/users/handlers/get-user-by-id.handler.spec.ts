@@ -1,6 +1,6 @@
-import { GetUserByIdHandler } from './get-user-by-id.handler';
-import { GetUserByIdQuery } from '../contracts';
-import { UsersService } from '../users.service';
+import { GetUserByIdHandler } from '@api/modules/users/handlers/get-user-by-id.handler';
+import { GetUserByIdQuery } from '@api/modules/users/contracts';
+import { UsersService } from '@api/modules/users/users.service';
 
 describe('GetUserByIdHandler', () => {
   it('delegates to UsersService.findById and never returns passwordHash', async () => {

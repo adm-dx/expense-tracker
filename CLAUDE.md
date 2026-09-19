@@ -51,16 +51,20 @@ npx prisma studio
 
 ### Testing
 
-```bash
-# Backend tests (from apps/api)
-cd apps/api
-npm test                    # Run all tests
-npm run test:watch          # Watch mode
-npm run test:cov            # With coverage
-npm run test:e2e            # E2E tests
+Unit tests live in the top-level `tests/` directory, not next to the sources:
 
-# Frontend tests
-cd apps/web
+- `tests/unit/api/**` mirrors `apps/api/src/**` (e.g. `tests/unit/api/modules/auth/auth.service.spec.ts` covers `apps/api/src/modules/auth/auth.service.ts`).
+- Specs import the code under test through the `@api/*` alias (`@api/modules/auth/auth.service`), never by a relative path into `apps/`. The alias is declared in both `tests/tsconfig.json` (`paths`) and `tests/jest.config.js` (`moduleNameMapper`), so add new aliases in both places.
+- `tests/jest.config.js` is the single Jest config; `rootDir` is the repo root. `apps/api`'s test scripts point at it, so the commands below are equivalent.
+
+```bash
+# From the repo root
+npm test                    # Run all unit tests
+npm run test:watch          # Watch mode
+npm run test:cov            # With coverage (written to ./coverage)
+
+# From apps/api (same suite, same config)
+cd apps/api
 npm test
 ```
 

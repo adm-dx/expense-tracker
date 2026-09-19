@@ -1,6 +1,6 @@
-import { GetUserCredentialsHandler } from './get-user-credentials.handler';
-import { GetUserCredentialsQuery } from '../contracts';
-import { UsersService } from '../users.service';
+import { GetUserCredentialsHandler } from '@api/modules/users/handlers/get-user-credentials.handler';
+import { GetUserCredentialsQuery } from '@api/modules/users/contracts';
+import { UsersService } from '@api/modules/users/users.service';
 
 describe('GetUserCredentialsHandler', () => {
   it('delegates to UsersService.getCredentials', async () => {
@@ -16,11 +16,11 @@ describe('GetUserCredentialsHandler', () => {
     const handler = new GetUserCredentialsHandler(usersService);
 
     const result = await handler.execute(
-      new GetUserCredentialsQuery('jane@example.com'),
+      new GetUserCredentialsQuery('jane@example.com')
     );
 
     expect(usersService.getCredentials).toHaveBeenCalledWith(
-      'jane@example.com',
+      'jane@example.com'
     );
     expect(result).toEqual(credentials);
   });

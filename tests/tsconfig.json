@@ -1,0 +1,19 @@
+{
+  "extends": "../packages/config/tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "..",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "types": ["jest", "node"],
+    "baseUrl": "..",
+    "paths": {
+      "@api/*": ["apps/api/src/*"],
+      "@expense-tracker/types": ["packages/types/src"]
+    }
+  },
+  "include": ["**/*.ts", "../apps/api/src/**/*.ts"],
+  "exclude": ["node_modules"]
+}

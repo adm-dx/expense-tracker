@@ -1,7 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { UsersService } from './users.service';
-import { UsersRepository } from './users.repository';
+import { UsersService } from '@api/modules/users/users.service';
+import { UsersRepository } from '@api/modules/users/users.repository';
 
 function makeUser(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -37,7 +37,7 @@ describe('UsersService', () => {
         new Prisma.PrismaClientKnownRequestError('duplicate', {
           code: 'P2002',
           clientVersion: '6.19.3',
-        }),
+        })
       );
 
       await expect(
@@ -45,7 +45,7 @@ describe('UsersService', () => {
           name: 'Jane',
           email: 'jane@example.com',
           passwordHash: 'hashed-secret',
-        }),
+        })
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -59,7 +59,7 @@ describe('UsersService', () => {
       });
 
       expect(repository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ email: 'jane@example.com' }),
+        expect.objectContaining({ email: 'jane@example.com' })
       );
     });
   });

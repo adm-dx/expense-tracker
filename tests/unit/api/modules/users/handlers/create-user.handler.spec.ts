@@ -1,6 +1,6 @@
-import { CreateUserHandler } from './create-user.handler';
-import { CreateUserCommand } from '../contracts';
-import { UsersService } from '../users.service';
+import { CreateUserHandler } from '@api/modules/users/handlers/create-user.handler';
+import { CreateUserCommand } from '@api/modules/users/contracts';
+import { UsersService } from '@api/modules/users/users.service';
 
 describe('CreateUserHandler', () => {
   it('delegates to UsersService.create', async () => {
@@ -10,7 +10,7 @@ describe('CreateUserHandler', () => {
     const handler = new CreateUserHandler(usersService);
 
     const result = await handler.execute(
-      new CreateUserCommand('Jane', 'jane@example.com', 'hashed'),
+      new CreateUserCommand('Jane', 'jane@example.com', 'hashed')
     );
 
     expect(usersService.create).toHaveBeenCalledWith({

@@ -1,6 +1,6 @@
-import { UserLoggedInHandler } from './user-logged-in.handler';
-import { UserLoggedInEvent } from '../../auth/contracts';
-import { UsersService } from '../users.service';
+import { UserLoggedInHandler } from '@api/modules/users/handlers/user-logged-in.handler';
+import { UserLoggedInEvent } from '@api/modules/auth/contracts';
+import { UsersService } from '@api/modules/users/users.service';
 
 describe('UserLoggedInHandler', () => {
   it('delegates to UsersService.markLoggedIn', async () => {
