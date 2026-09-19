@@ -1,11 +1,15 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { CommandBus, EventBus, QueryBus } from '@nestjs/cqrs';
 import * as bcrypt from 'bcryptjs';
-import { AuthService } from './auth.service';
-import { TokenService } from './token.service';
-import { UserLoggedInEvent } from './contracts';
-import { CreateUserCommand } from '../users/contracts';
-import { CreateDefaultCategoriesCommand } from '../categories/contracts';
+import { AuthService } from '@api/modules/auth/auth.service';
+import { TokenService } from '@api/modules/auth/token.service';
+import { UserLoggedInEvent } from '@api/modules/auth/contracts';
+import { CreateUserCommand } from '@api/modules/users/contracts';
+import { CreateDefaultCategoriesCommand } from '@api/modules/categories/contracts';
 
 const FIXED_DATE = new Date('2026-01-01T00:00:00.000Z');
 
@@ -43,6 +47,10 @@ describe('AuthService', () => {
     service = new AuthService(commandBus, queryBus, eventBus, tokenService);
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   describe('register', () => {
     it('creates the user with default categories and issues tokens', async () => {
       commandBus.execute
@@ -57,11 +65,11 @@ describe('AuthService', () => {
 
       expect(commandBus.execute).toHaveBeenCalledTimes(2);
       expect(commandBus.execute.mock.calls[0]?.[0]).toBeInstanceOf(
-        CreateUserCommand,
+        CreateUserCommand
       );
       expect(commandBus.execute).toHaveBeenNthCalledWith(
         2,
-        new CreateDefaultCategoriesCommand('user-1'),
+        new CreateDefaultCategoriesCommand('user-1')
       );
       expect(tokenService.issueTokens).toHaveBeenCalledWith(makePublicUser());
       expect(result).toEqual({
@@ -72,6 +80,8 @@ describe('AuthService', () => {
     });
 
     it('still registers when seeding default categories fails', async () => {
+      // The service logs the failure; keep it out of the test output.
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
       commandBus.execute
         .mockResolvedValueOnce(makePublicUser())
         .mockRejectedValueOnce(new Error('db is down'));
@@ -84,11 +94,12 @@ describe('AuthService', () => {
 
       expect(result.user).toEqual(makePublicUser());
       expect(result.accessToken).toBe('access');
+      expect(Logger.prototype.error).toHaveBeenCalled();
     });
 
     it('propagates ConflictException for a duplicate email', async () => {
       commandBus.execute.mockRejectedValue(
-        new ConflictException('A user with this email already exists'),
+        new ConflictException('A user with this email already exists')
       );
 
       await expect(
@@ -96,7 +107,7 @@ describe('AuthService', () => {
           name: 'Jane',
           email: 'jane@example.com',
           password: 'super-secret',
-        }),
+        })
       ).rejects.toBeInstanceOf(ConflictException);
     });
   });
@@ -119,7 +130,7 @@ describe('AuthService', () => {
       });
 
       expect(eventBus.publish).toHaveBeenCalledWith(
-        expect.any(UserLoggedInEvent),
+        expect.any(UserLoggedInEvent)
       );
       expect(result.user).toEqual(makePublicUser());
       expect(result.accessToken).toBe('access');
@@ -135,7 +146,7 @@ describe('AuthService', () => {
       });
 
       await expect(
-        service.login({ email: 'jane@example.com', password: 'wrong' }),
+        service.login({ email: 'jane@example.com', password: 'wrong' })
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(eventBus.publish).not.toHaveBeenCalled();
     });
@@ -144,7 +155,7 @@ describe('AuthService', () => {
       queryBus.execute.mockResolvedValueOnce(null);
 
       await expect(
-        service.login({ email: 'ghost@example.com', password: 'whatever' }),
+        service.login({ email: 'ghost@example.com', password: 'whatever' })
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(eventBus.publish).not.toHaveBeenCalled();
     });

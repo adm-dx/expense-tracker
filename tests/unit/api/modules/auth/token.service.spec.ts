@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { QueryBus } from '@nestjs/cqrs';
 import { createHash } from 'crypto';
-import { TokenService } from './token.service';
-import { RefreshTokensRepository } from './refresh-tokens.repository';
+import { TokenService } from '@api/modules/auth/token.service';
+import { RefreshTokensRepository } from '@api/modules/auth/refresh-tokens.repository';
 
 const CONFIG: Record<string, string> = {
   JWT_ACCESS_SECRET: 'access-secret',
@@ -57,7 +57,7 @@ describe('TokenService', () => {
       jwtService,
       configService,
       refreshTokensRepository,
-      queryBus,
+      queryBus
     );
   });
 
@@ -104,7 +104,7 @@ describe('TokenService', () => {
       });
 
       await expect(service.rotate('old-refresh-token')).rejects.toBeInstanceOf(
-        UnauthorizedException,
+        UnauthorizedException
       );
     });
 
@@ -120,10 +120,10 @@ describe('TokenService', () => {
       });
 
       await expect(service.rotate('old-refresh-token')).rejects.toBeInstanceOf(
-        UnauthorizedException,
+        UnauthorizedException
       );
       expect(refreshTokensRepository.revokeAllForUser).toHaveBeenCalledWith(
-        'user-1',
+        'user-1'
       );
     });
 
@@ -139,10 +139,10 @@ describe('TokenService', () => {
       });
 
       await expect(service.rotate('old-refresh-token')).rejects.toBeInstanceOf(
-        UnauthorizedException,
+        UnauthorizedException
       );
       expect(refreshTokensRepository.revokeAllForUser).toHaveBeenCalledWith(
-        'user-1',
+        'user-1'
       );
     });
   });

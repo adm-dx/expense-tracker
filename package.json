@@ -13,15 +13,29 @@
     "build": "npm run build --workspaces",
     "build:web": "npm run build --workspace=apps/web",
     "build:api": "npm run build --workspace=apps/api",
-    "lint": "npm run lint --workspaces",
+    "lint": "npm run lint --workspaces --if-present && npm run lint:tests",
+    "lint:tests": "eslint tests apps/api/src",
+    "test": "jest --config tests/jest.config.js",
+    "test:watch": "jest --config tests/jest.config.js --watch",
+    "test:cov": "jest --config tests/jest.config.js --coverage",
+    "test:cov:integration": "jest --config tests/jest.integration.config.js --coverage",
+    "test:integration": "jest --config tests/jest.integration.config.js",
+    "test:e2e": "jest --config tests/jest.e2e.config.js",
+    "test:all": "npm test && npm run test:integration && npm run test:e2e",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "db:start": "docker compose -f docker/docker-compose.yml up -d",
     "db:stop": "docker compose -f docker/docker-compose.yml down",
-    "db:restart": "npm run db:stop && npm run db:start"
+    "db:restart": "npm run db:stop && npm run db:start",
+    "db:test:start": "docker compose -f docker/docker-compose.yml --profile test up -d --wait postgres-test",
+    "db:test:stop": "docker compose -f docker/docker-compose.yml --profile test rm -sf postgres-test"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "concurrently": "^9.1.2",
-    "prettier": "^3.4.2"
+    "eslint": "^9.39.5",
+    "eslint-plugin-jest": "^29.16.6",
+    "prettier": "^3.4.2",
+    "typescript-eslint": "^8.70.0"
   }
 }

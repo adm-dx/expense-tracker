@@ -3,8 +3,9 @@ services:
     image: postgres:16-alpine
     container_name: expense-tracker-postgres
     restart: unless-stopped
+    # Bound to loopback: the database must not be reachable from the network.
     ports:
-      - '5432:5432'
+      - '127.0.0.1:5432:5432'
     environment:
       POSTGRES_USER: expense_tracker
       POSTGRES_PASSWORD: dev_password
@@ -16,6 +17,28 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Throwaway database for integration and e2e tests. Behind the `test`
+  # profile so `npm run db:start` never starts it; use `npm run db:test:start`.
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: expense-tracker-postgres-test
+    profiles: ['test']
+    ports:
+      - '127.0.0.1:5433:5432'
+    environment:
+      POSTGRES_USER: expense_tracker
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_DB: expense_tracker_test
+    # In-memory data dir: nothing persists between container runs.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U expense_tracker -d expense_tracker_test']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   postgres_data:

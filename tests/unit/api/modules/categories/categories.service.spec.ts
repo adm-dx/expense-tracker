@@ -1,8 +1,8 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { CategoriesService } from './categories.service';
-import { CategoriesRepository } from './categories.repository';
-import { DEFAULT_CATEGORIES } from './default-categories';
+import { CategoriesService } from '@api/modules/categories/categories.service';
+import { CategoriesRepository } from '@api/modules/categories/categories.repository';
+import { DEFAULT_CATEGORIES } from '@api/modules/categories/default-categories';
 
 function makeCategory(overrides: Partial<Record<string, unknown>> = {}) {
   return {

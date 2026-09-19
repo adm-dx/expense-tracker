@@ -1,6 +1,6 @@
-import { CreateDefaultCategoriesHandler } from './create-default-categories.handler';
-import { CreateDefaultCategoriesCommand } from '../contracts';
-import { CategoriesService } from '../categories.service';
+import { CreateDefaultCategoriesHandler } from '@api/modules/categories/handlers/create-default-categories.handler';
+import { CreateDefaultCategoriesCommand } from '@api/modules/categories/contracts';
+import { CategoriesService } from '@api/modules/categories/categories.service';
 
 describe('CreateDefaultCategoriesHandler', () => {
   it('delegates to CategoriesService.createDefaults', async () => {

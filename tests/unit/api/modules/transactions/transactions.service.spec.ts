@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma, TransactionType } from '@prisma/client';
-import { TransactionsService } from './transactions.service';
-import { TransactionsRepository } from './transactions.repository';
+import { TransactionsService } from '@api/modules/transactions/transactions.service';
+import { TransactionsRepository } from '@api/modules/transactions/transactions.repository';
 
 function makeTransaction(overrides: Partial<Record<string, unknown>> = {}) {
   return {
