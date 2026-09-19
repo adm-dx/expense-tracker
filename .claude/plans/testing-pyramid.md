@@ -42,11 +42,13 @@ tests/
 ## Чеклист
 
 ### Шаг 0. Ветка и перенос тестов
+
 - [x] `git checkout -b test/testing-pyramid` от `main` — незакоммиченные правки (перенос spec-файлов в `tests/unit`, `tests/jest.config.js`, `tests/tsconfig.json`, скрипты в `package.json`, раздел Testing в `CLAUDE.md`) переезжают в новую ветку вместе с переключением.
 - [x] Закоммитить этот перенос отдельным коммитом (`npm test` перед коммитом должен быть зелёным).
 - [x] Положить план в `.claude/plans/testing-pyramid.md`.
 
 ### Шаг 1. Инфраструктура тестовой БД
+
 - [x] В `docker/docker-compose.yml` добавить сервис `postgres-test` (`expense-tracker-postgres-test`, порт `5433`, БД `expense_tracker_test`, **без** volume — данные одноразовые, healthcheck как у основного).
 - [x] В корневой `package.json`: `db:test:start`, `db:test:stop` (docker compose up/down конкретного сервиса).
 - [x] `tests/setup/env.ts`: `DATABASE_URL` из `TEST_DATABASE_URL` (дефолт `postgresql://expense_tracker:dev_password@localhost:5433/expense_tracker_test?schema=public`), `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET`/сроки жизни — фиксированные тестовые значения. Прод-`.env` не читаем, чтобы тесты не ходили в dev-базу.
@@ -55,6 +57,7 @@ tests/
 - [x] Добавить в `.env.example` закомментированный `TEST_DATABASE_URL` и описание в `CLAUDE.md`.
 
 ### Шаг 2. Конфигурация раннеров
+
 - [x] `apps/web/package.json`: добавить devDeps (`jest`, `jest-environment-jsdom`, `@testing-library/*`).
 - [x] `tests/jest.unit-api.config.js` — текущий конфиг (node, `roots: tests/unit/api`).
 - [x] `tests/jest.unit-web.config.js` — через `next/jest` (`createJestConfig({ dir: 'apps/web' })`), `testEnvironment: jsdom`, `setupFilesAfterEach: tests/setup/jest-dom.ts`, `moduleNameMapper` для `@/` → `apps/web/src`.
@@ -64,6 +67,7 @@ tests/
 - [x] `tests/tsconfig.json`: добавить `@web/*` → `apps/web/src/*`, `jsx: preserve`, типы `@testing-library/jest-dom`.
 
 ### Шаг 3. Юнит-тесты фронтенда (`tests/unit/web`)
+
 - [x] `shared/lib/period.spec.ts` — границы всех пресетов (включая переход через январь и високосный февраль), `formatPeriod`, стабильность при фиксированном «сегодня» (fake timers).
 - [x] `shared/lib/format.spec.ts` — `formatAmount` (+/−), `formatCurrency`, `toIsoDate`, `toIsoEndOfDay` (`23:59:59.999Z` — регрессия на потерянный последний день), `toDateInputValue`.
 - [x] `features/transaction/upsert/schema.spec.ts` — сумма (ноль, отрицательная, три знака, верхний предел), описание > 255, формат даты.
@@ -72,6 +76,7 @@ tests/
 - [x] `features/transaction/period-filter/period-filter.spec.tsx` (RTL + user-event) — выбор пресета меняет период в сторе; правка «From» за «To» подтягивает вторую границу, а не шлёт инвертированный диапазон.
 
 ### Шаг 4. Интеграционные тесты API (`tests/integration/api`)
+
 - [x] Вынести настройку приложения из `apps/api/src/main.ts` в `apps/api/src/app.config.ts` (`configureApp(app)`: `ValidationPipe` + CORS), чтобы тесты поднимали приложение ровно с теми же правилами. `main.ts` использует её же.
 - [x] `tests/setup/app.ts`: `createTestApp()` — `Test.createTestingModule({ imports: [AppModule] })` + `configureApp` + `app.init()`; хелпер `registerUser(app)` возвращает токены и `userId`.
 - [x] `transactions.validation.spec.ts` — `pageSize=15`, `page=0`, `page` выше максимума, нестрогая дата, лишнее поле в теле → 400 с понятным сообщением; без токена → 401.
@@ -81,10 +86,12 @@ tests/
 - [x] `resetDatabase()` в `beforeEach`, `app.close()` + `disconnect()` в `afterAll`.
 
 ### Шаг 5. E2E (`tests/e2e/api`)
+
 - [x] `home-screen.e2e-spec.ts` — один сквозной сценарий через HTTP (supertest): регистрация → категории по умолчанию → создание 25 транзакций → пагинация 10/20/50 → сводка сходится с суммой строк за тот же период → редактирование → удаление → выход → 401 на старый refresh-токен.
 - [x] Проверить, что «последний день периода» попадает и в список, и в сводку (транзакция с временем 18:45 последнего дня).
 
 ### Шаг 6. Документация и проверка
+
 - [x] `CLAUDE.md`: раздел Testing — уровни, где что лежит, команды, как поднять тестовую БД.
 - [x] Прогнать всё, поправить найденное, обновить `.claude/plans/testing-pyramid.md` разделом «Отклонения при реализации».
 
@@ -114,3 +121,33 @@ tests/
 - Компонентных тестов на фронтенде мало: покрыт только `PeriodFilter`. Форма транзакции, диалог удаления, таблица с пагинацией, `AuthGuard` и шапка не тестируются (покрытие у виджетов 0%).
 - E2E — на уровне HTTP. Браузерных сценариев (Playwright) нет, поэтому связка «React + реальный API» проверяется только вручную.
 - В CI тесты не подключены (в репозитории нет конфигурации CI).
+
+## Правки после ревью тестов
+
+**Безопасность**
+
+- Порты Postgres опубликованы как `127.0.0.1:5432` и `127.0.0.1:5433` вместо `0.0.0.0` — пароли лежат в репозитории, база не должна быть доступна из сети. Dev-контейнер подхватит это при пересоздании (`npm run db:restart`).
+- Добавлены тесты guard'а: просроченный access-токен, токен с чужой подписью, «alg: none», токен для несуществующего пользователя. Для `jsonwebtoken` заведена явная devDependency (раньше он приходил транзитивно через `@nestjs/jwt`).
+- Зафиксировано текущее поведение: у деактивированного пользователя access-токен продолжает работать до истечения (guard проверяет только подпись), а refresh отклоняется сразу.
+
+**Изоляция и надёжность тестов**
+
+- `resetDatabase()` берёт список таблиц из `pg_tables`, а не из зашитого перечня: новая модель больше не сможет тихо протащить данные между тестами.
+- Тест изоляции сравнивает всю строку со снимком «до» вместо проверки «сумма есть»: ответ `404`, который всё-таки изменил или удалил запись, теперь падает.
+- Тест «текущий месяц» выводит ожидание из самого ответа и не может упасть на границе месяца.
+
+**Покрытие критичной логики фронтенда**
+
+- `http-client`: заголовки и сборка query, ошибки `ApiError`, обновление токена по 401 с повтором запроса, общий запрос обновления при параллельных 401, единственный повтор, `onAuthFailure` при неудаче. Спецификация помечена `@jest-environment node`, так как jsdom не даёт `fetch`/`Response`.
+- `use-upsert-transaction`: отправка только изменённых полей, `12.50` против `12.5`, очистка описания в `null`, отсутствие запроса при нетронутой форме.
+- `use-delete-transaction`: успех, `404` как «уже удалено», прочие ошибки.
+
+**Чистота кода**
+
+- Появился корневой `eslint.config.mjs` (flat config) для `tests/**` и `apps/api/src/**` с `typescript-eslint` и `eslint-plugin-jest`: ловит незахваченные промисы, тесты без проверок, забытые `.only`. Корневой `npm run lint` больше не падает (`--if-present` + `lint:tests`), у `apps/api` починен собственный скрипт линта.
+- Тела ответов читаются через типизированный `expectJson<T>()` вместо `any`.
+- Тест `PeriodFilter` проверяет результат через интерфейс и мокает «сегодня» вместо подмены таймеров.
+- Спецификация валидации регистрирует пользователя один раз на файл и чистит только транзакции: 6.4 с → 2.1 с.
+- Удалена папка `tests/coverage/`, оставшаяся от раннего прогона.
+
+Новые поломки проверены мутациями: отключение повтора после обновления токена (2 падения), общего запроса обновления (1), диффа полей при редактировании (8), обработки `404` при удалении (1).

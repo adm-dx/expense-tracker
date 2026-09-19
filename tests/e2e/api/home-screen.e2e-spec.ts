@@ -1,6 +1,14 @@
 import { INestApplication } from '@nestjs/common';
+import type {
+  AuthResponse,
+  Category,
+  PaginatedResponse,
+  Transaction,
+  TransactionSummary,
+} from '@expense-tracker/types';
 import { DEFAULT_CATEGORIES } from '@api/modules/categories/default-categories';
 import { createTestApp, request } from '@tests/setup/app';
+import { expectJson } from '@tests/setup/http';
 import {
   disconnectDatabase,
   resetDatabase,
@@ -56,32 +64,16 @@ const inRange = (row: Row, from: string, to: string) => {
   return time >= new Date(from).getTime() && time <= new Date(to).getTime();
 };
 
-async function list(query: string) {
-  const response = await server()
-    .get(`/transactions${query}`)
-    .set(auth())
-    .expect(200);
-  return response.body as {
-    items: { id: string; amount: string; type: string; categoryId: string }[];
-    total: number;
-    page: number;
-    pageSize: number;
-  };
+function list(query: string) {
+  return expectJson<PaginatedResponse<Transaction>>(
+    server().get(`/transactions${query}`).set(auth())
+  );
 }
 
-async function summary(query: string) {
-  const response = await server()
-    .get(`/transactions/summary${query}`)
-    .set(auth())
-    .expect(200);
-  return response.body as {
-    dateFrom: string;
-    dateTo: string;
-    totalIncome: string;
-    totalExpense: string;
-    balance: string;
-    byCategory: { categoryId: string; type: string; total: string }[];
-  };
+function summary(query: string) {
+  return expectJson<TransactionSummary>(
+    server().get(`/transactions/summary${query}`).set(auth())
+  );
 }
 
 const period = (from: string, to: string) =>
@@ -99,25 +91,26 @@ afterAll(async () => {
 
 describe('home screen journey', () => {
   it('signs up and lands with a session', async () => {
-    const response = await server()
-      .post('/auth/register')
-      .send({ name: 'Journey', email: EMAIL, password: PASSWORD })
-      .expect(201);
+    const registered = await expectJson<AuthResponse>(
+      server()
+        .post('/auth/register')
+        .send({ name: 'Journey', email: EMAIL, password: PASSWORD }),
+      201
+    );
 
-    accessToken = response.body.accessToken;
-    refreshToken = response.body.refreshToken;
-    expect(response.body.user.email).toBe(EMAIL);
+    accessToken = registered.accessToken;
+    refreshToken = registered.refreshToken;
+    expect(registered.user.email).toBe(EMAIL);
     await server().get('/auth/me').set(auth()).expect(200);
   });
 
   it('starts with the default categories and an empty table', async () => {
-    const categories = await server()
-      .get('/categories')
-      .set(auth())
-      .expect(200);
-    categoryIds = categories.body.map((c: { id: string }) => c.id);
+    const categories = await expectJson<Category[]>(
+      server().get('/categories').set(auth())
+    );
+    categoryIds = categories.map((c) => c.id);
 
-    expect(categories.body.map((c: { name: string }) => c.name).sort()).toEqual(
+    expect(categories.map((c) => c.name).sort()).toEqual(
       DEFAULT_CATEGORIES.map((c) => c.name).sort()
     );
     expect(await list('')).toEqual({
@@ -154,17 +147,19 @@ describe('home screen journey', () => {
     });
 
     for (const draft of drafts) {
-      const response = await server()
-        .post('/transactions')
-        .set(auth())
-        .send({
-          amount: draft.cents / 100,
-          type: draft.type,
-          date: draft.date,
-          categoryId: draft.categoryId,
-        })
-        .expect(201);
-      rows.push({ ...draft, id: response.body.id });
+      const created = await expectJson<Transaction>(
+        server()
+          .post('/transactions')
+          .set(auth())
+          .send({
+            amount: draft.cents / 100,
+            type: draft.type,
+            date: draft.date,
+            categoryId: draft.categoryId,
+          }),
+        201
+      );
+      rows.push({ ...draft, id: created.id });
     }
 
     expect(rows).toHaveLength(25);
@@ -303,13 +298,14 @@ describe('home screen journey', () => {
       const target = rows[1] as Row; // day 2: an expense
       const newCategory = categoryIds[5] as string;
 
-      const response = await server()
-        .patch(`/transactions/${target.id}`)
-        .set(auth())
-        .send({ amount: 500, type: 'INCOME', categoryId: newCategory })
-        .expect(200);
+      const updated = await expectJson<Transaction>(
+        server()
+          .patch(`/transactions/${target.id}`)
+          .set(auth())
+          .send({ amount: 500, type: 'INCOME', categoryId: newCategory })
+      );
 
-      expect(response.body).toMatchObject({
+      expect(updated).toMatchObject({
         id: target.id,
         amount: '500.00',
         type: 'INCOME',
@@ -392,13 +388,12 @@ describe('home screen journey', () => {
     });
 
     it('logging back in shows the same data', async () => {
-      const login = await server()
-        .post('/auth/login')
-        .send({ email: EMAIL, password: PASSWORD })
-        .expect(200);
-      accessToken = login.body.accessToken;
-      refreshToken = login.body.refreshToken;
-      await waitForLastLogin(login.body.user.id);
+      const login = await expectJson<AuthResponse>(
+        server().post('/auth/login').send({ email: EMAIL, password: PASSWORD })
+      );
+      accessToken = login.accessToken;
+      refreshToken = login.refreshToken;
+      await waitForLastLogin(login.user.id);
 
       const table = await list('?pageSize=50');
       const expected = totals(rows);
@@ -407,7 +402,7 @@ describe('home screen journey', () => {
       expect(table.total).toBe(rows.length);
       expect(cards.balance).toBe(money(expected.balance));
       expect(
-        (await server().get('/categories').set(auth()).expect(200)).body
+        await expectJson<Category[]>(server().get('/categories').set(auth()))
       ).toHaveLength(DEFAULT_CATEGORIES.length);
     });
   });

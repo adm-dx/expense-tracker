@@ -13,6 +13,11 @@ let alice: TestUser;
 let bob: TestUser;
 let aliceCategoryId: string;
 let aliceTransactionId: string;
+// Snapshots taken before each attack, to prove nothing changed.
+let aliceCategoryBefore: Awaited<ReturnType<typeof prisma.category.findUnique>>;
+let aliceTransactionBefore: Awaited<
+  ReturnType<typeof prisma.transaction.findUnique>
+>;
 
 beforeAll(async () => {
   app = await createTestApp();
@@ -36,6 +41,12 @@ beforeEach(async () => {
     })
     .expect(201);
   aliceTransactionId = created.body.id;
+  aliceCategoryBefore = await prisma.category.findUniqueOrThrow({
+    where: { id: aliceCategoryId },
+  });
+  aliceTransactionBefore = await prisma.transaction.findUniqueOrThrow({
+    where: { id: aliceTransactionId },
+  });
 });
 
 afterAll(async () => {
@@ -44,6 +55,15 @@ afterAll(async () => {
 });
 
 const server = () => request(app.getHttpServer());
+
+type Verb = 'get' | 'patch' | 'delete';
+
+/** Sends `verb` to `url` as Bob, with a body only where one makes sense. */
+function attempt(verb: Verb, url: string, body?: Record<string, unknown>) {
+  const agent = server();
+  const test = agent[verb](url).set(...bearer(bob));
+  return body ? test.send(body) : test;
+}
 
 describe("one user can't reach another user's data", () => {
   it("doesn't list it", async () => {
@@ -80,17 +100,20 @@ describe("one user can't reach another user's data", () => {
     "answers 404 (not 403) when %s someone else's transaction",
     async (_label, method) => {
       // 404 rather than 403, so the id's existence isn't revealed.
-      const response = await server()
-        [method](`/transactions/${aliceTransactionId}`)
-        .set(...bearer(bob))
-        .send(method === 'patch' ? { amount: 1 } : undefined);
+      const response = await attempt(
+        method,
+        `/transactions/${aliceTransactionId}`,
+        method === 'patch' ? { amount: 1 } : undefined
+      );
 
       expect(response.status).toBe(404);
-      expect(
-        await prisma.transaction.findUnique({
-          where: { id: aliceTransactionId },
-        })
-      ).toMatchObject({ amount: expect.anything() });
+      // The row must be byte-for-byte what it was: a 404 that still wrote
+      // (or deleted) would otherwise slip through.
+      const after = await prisma.transaction.findUnique({
+        where: { id: aliceTransactionId },
+      });
+      expect(after).not.toBeNull();
+      expect(after).toEqual(aliceTransactionBefore);
     }
   );
 
@@ -101,19 +124,18 @@ describe("one user can't reach another user's data", () => {
   ] as const)(
     "answers 404 when %s someone else's category",
     async (_label, method) => {
-      const response = await server()
-        [method](`/categories/${aliceCategoryId}`)
-        .set(...bearer(bob))
-        .send(method === 'patch' ? { name: 'Hijacked' } : undefined);
+      const response = await attempt(
+        method,
+        `/categories/${aliceCategoryId}`,
+        method === 'patch' ? { name: 'Hijacked' } : undefined
+      );
 
       expect(response.status).toBe(404);
-      expect(
-        (
-          await prisma.category.findUniqueOrThrow({
-            where: { id: aliceCategoryId },
-          })
-        ).name
-      ).not.toBe('Hijacked');
+      const after = await prisma.category.findUnique({
+        where: { id: aliceCategoryId },
+      });
+      expect(after).not.toBeNull();
+      expect(after).toEqual(aliceCategoryBefore);
     }
   );
 

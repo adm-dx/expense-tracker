@@ -3,6 +3,7 @@ import {
   bearer,
   createTestApp,
   DEFAULT_PASSWORD,
+  forgeAccessToken,
   registerUser,
   request,
   TestUser,
@@ -186,6 +187,76 @@ describe('GET /auth/me', () => {
       .set(...bearer(user));
 
     expect(response.status).toBe(401);
+  });
+});
+
+describe('access tokens', () => {
+  const withToken = (token: string) =>
+    server().get('/auth/me').set('Authorization', `Bearer ${token}`);
+
+  it('accepts a token the API issued', async () => {
+    const user = await registerUser(app);
+
+    await withToken(user.accessToken).expect(200);
+  });
+
+  it('rejects an expired token', async () => {
+    const user = await registerUser(app);
+    const expired = forgeAccessToken(
+      { sub: user.id, email: user.email },
+      { expiresIn: -60 }
+    );
+
+    const response = await withToken(expired);
+
+    expect(response.status).toBe(401);
+    expect(response.body.message).toBe('Invalid access token');
+  });
+
+  it('rejects a token signed with a different secret', async () => {
+    const user = await registerUser(app);
+    const forged = forgeAccessToken(
+      { sub: user.id, email: user.email },
+      { secret: 'attacker-secret' }
+    );
+
+    expect((await withToken(forged)).status).toBe(401);
+  });
+
+  it('rejects an unsigned token (the "alg: none" attack)', async () => {
+    const user = await registerUser(app);
+    const unsigned = forgeAccessToken(
+      { sub: user.id, email: user.email },
+      { alg: 'none' }
+    );
+
+    expect((await withToken(unsigned)).status).toBe(401);
+  });
+
+  it('rejects a token for a user id that never existed', async () => {
+    const invented = forgeAccessToken({
+      sub: 'no-such-user',
+      email: 'nobody@example.com',
+    });
+
+    expect((await withToken(invented)).status).toBe(401);
+  });
+
+  it('still works for a user deactivated after the token was issued', async () => {
+    // Documents current behaviour, which is a deliberate trade-off: the guard
+    // only verifies the signature, so deactivating a user takes effect when
+    // their access token expires (JWT_ACCESS_EXPIRES_IN, 15m by default).
+    // Their refresh token is refused immediately, so no new one is issued.
+    const user = await registerUser(app);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { isActive: false },
+    });
+
+    await withToken(user.accessToken).expect(200);
+    await post('/auth/refresh', { refreshToken: user.refreshToken }).expect(
+      401
+    );
   });
 });
 

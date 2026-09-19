@@ -7,11 +7,27 @@ export const prisma = new PrismaClient({
   datasources: { db: { url: TEST_DATABASE_URL } },
 });
 
-/** Empties every table so each test starts from a blank database. */
+/**
+ * Empties every table so each test starts from a blank database. The list is
+ * read from the database rather than hard-coded, so a new model can't quietly
+ * leak rows from one test into the next.
+ */
 export async function resetDatabase(): Promise<void> {
+  const tables = await prisma.$queryRaw<{ tablename: string }[]>`
+    SELECT tablename FROM pg_tables
+    WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'
+  `;
+  if (tables.length === 0) return;
+
+  const quoted = tables.map((t) => `"public"."${t.tablename}"`).join(', ');
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "transactions", "categories", "refresh_tokens", "users" RESTART IDENTITY CASCADE'
+    `TRUNCATE TABLE ${quoted} RESTART IDENTITY CASCADE`
   );
+}
+
+/** Clears transactions only, for suites that keep one user for the whole file. */
+export async function clearTransactions(): Promise<void> {
+  await prisma.transaction.deleteMany();
 }
 
 export async function disconnectDatabase(): Promise<void> {

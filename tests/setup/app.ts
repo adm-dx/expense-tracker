@@ -1,9 +1,12 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import type { AuthResponse } from '@expense-tracker/types';
+import { sign, type SignOptions } from 'jsonwebtoken';
 import { AppModule } from '@api/app.module';
 import { configureApp } from '@api/app.config';
 import { assertTestDatabase } from './env';
+import { expectJson } from './http';
 
 /**
  * Boots the real application (guards, pipes, controllers, repositories) with
@@ -50,18 +53,18 @@ export async function registerUser(
     email: overrides.email ?? `user${counter}-${Date.now()}@example.com`,
     password: overrides.password ?? DEFAULT_PASSWORD,
   };
-  const response = await request(app.getHttpServer())
-    .post('/auth/register')
-    .send(body)
-    .expect(201);
+  const auth = await expectJson<AuthResponse>(
+    request(app.getHttpServer()).post('/auth/register').send(body),
+    201
+  );
 
   return {
-    id: response.body.user.id,
+    id: auth.user.id,
     email: body.email,
     name: body.name,
     password: body.password,
-    accessToken: response.body.accessToken,
-    refreshToken: response.body.refreshToken,
+    accessToken: auth.accessToken,
+    refreshToken: auth.refreshToken,
   };
 }
 
@@ -70,3 +73,22 @@ export function bearer(user: Pick<TestUser, 'accessToken'>): [string, string] {
 }
 
 export { request };
+
+/**
+ * Mints an access token the API did not issue, for testing the guard:
+ * expired, signed with the wrong secret, or unsigned (`alg: none`).
+ */
+export function forgeAccessToken(
+  payload: { sub: string; email: string },
+  options: { secret?: string; expiresIn?: string | number; alg?: 'none' } = {}
+): string {
+  if (options.alg === 'none') {
+    const encode = (value: unknown) =>
+      Buffer.from(JSON.stringify(value)).toString('base64url');
+    // The classic "alg: none" attack: a header claiming no signature at all.
+    return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`;
+  }
+  return sign(payload, options.secret ?? process.env.JWT_ACCESS_SECRET ?? '', {
+    expiresIn: options.expiresIn ?? '15m',
+  } as SignOptions);
+}

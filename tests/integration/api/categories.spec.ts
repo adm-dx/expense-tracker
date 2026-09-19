@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import type { Category } from '@expense-tracker/types';
 import { CategoriesRepository } from '@api/modules/categories/categories.repository';
 import { DEFAULT_CATEGORIES } from '@api/modules/categories/default-categories';
 import {
@@ -8,6 +9,7 @@ import {
   request,
   TestUser,
 } from '@tests/setup/app';
+import { expectJson } from '@tests/setup/http';
 import { disconnectDatabase, prisma, resetDatabase } from '@tests/setup/prisma';
 import { seedTransaction } from '@tests/setup/seed';
 
@@ -31,16 +33,12 @@ afterAll(async () => {
 const server = () => request(app.getHttpServer());
 const as = (u: TestUser) => bearer(u);
 
-async function listCategories(u: TestUser, query = '') {
-  const response = await server()
-    .get(`/categories${query}`)
-    .set(...as(u));
-  return response.body as {
-    id: string;
-    name: string;
-    color: string;
-    icon: string;
-  }[];
+function listCategories(u: TestUser, query = '') {
+  return expectJson<Category[]>(
+    server()
+      .get(`/categories${query}`)
+      .set(...as(u))
+  );
 }
 
 describe('default categories', () => {

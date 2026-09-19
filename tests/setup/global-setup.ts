@@ -17,7 +17,8 @@ export default function globalSetup(): void {
         ? String((error as { stderr: unknown }).stderr)
         : String(error);
     throw new Error(
-      `Could not migrate the test database. Is it running? (npm run db:test:start)\n${output}`
+      `Could not migrate the test database. Is it running? (npm run db:test:start)\n${output}`,
+      { cause: error }
     );
   }
 }

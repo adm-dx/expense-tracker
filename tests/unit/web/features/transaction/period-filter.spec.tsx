@@ -5,35 +5,17 @@ import { PeriodFilter } from '@web/features/transaction/period-filter';
 
 const SEPTEMBER = { dateFrom: '2026-09-01', dateTo: '2026-09-30' };
 
-// Freeze only `Date`, so the "today" behind the presets is fixed while
-// user-event and Radix keep their real timers.
-const ONLY_DATE = [
-  'setTimeout',
-  'clearTimeout',
-  'setInterval',
-  'clearInterval',
-  'setImmediate',
-  'clearImmediate',
-  'queueMicrotask',
-  'nextTick',
-  'requestAnimationFrame',
-  'cancelAnimationFrame',
-  'requestIdleCallback',
-  'cancelIdleCallback',
-  'performance',
-] as const;
+// Fake timers would also freeze user-event's and Radix's timers, so only the
+// clock behind the presets is pinned.
+jest.mock('@web/shared/lib/format', () => ({
+  ...jest.requireActual('@web/shared/lib/format'),
+  // `jest.mock` is hoisted above the imports, so the date is inlined here.
+  todayDateInputValue: () => '2026-09-16',
+}));
 
 beforeEach(() => {
-  jest.useFakeTimers({
-    now: new Date(2026, 8, 16, 12),
-    doNotFake: [...ONLY_DATE],
-  });
   useTransactionsStore.getState().reset();
   useTransactionsStore.setState({ period: SEPTEMBER, preset: 'this-month' });
-});
-
-afterEach(() => {
-  jest.useRealTimers();
 });
 
 function period() {
@@ -55,6 +37,11 @@ describe('PeriodFilter', () => {
     await user.click(screen.getByRole('combobox', { name: 'Period' }));
     await user.click(await screen.findByRole('option', { name: 'Last month' }));
 
+    expect(screen.getByLabelText('From')).toHaveValue('2026-08-01');
+    expect(screen.getByLabelText('To')).toHaveValue('2026-08-31');
+    expect(screen.getByRole('combobox', { name: 'Period' })).toHaveTextContent(
+      'Last month'
+    );
     expect(useTransactionsStore.getState().preset).toBe('last-month');
     expect(period()).toEqual({ dateFrom: '2026-08-01', dateTo: '2026-08-31' });
   });
@@ -77,6 +64,9 @@ describe('PeriodFilter', () => {
       target: { value: '2026-09-10' },
     });
 
+    expect(screen.getByRole('combobox', { name: 'Period' })).toHaveTextContent(
+      'Custom'
+    );
     expect(useTransactionsStore.getState().preset).toBe('custom');
     expect(period()).toEqual({ dateFrom: '2026-09-10', dateTo: '2026-09-30' });
   });
@@ -89,6 +79,7 @@ describe('PeriodFilter', () => {
     });
 
     // Never an inverted range: the API rejects it with a 400.
+    expect(screen.getByLabelText('To')).toHaveValue('2027-09-30');
     expect(period()).toEqual({ dateFrom: '2027-09-30', dateTo: '2027-09-30' });
   });
 
@@ -99,6 +90,7 @@ describe('PeriodFilter', () => {
       target: { value: '2026-08-15' },
     });
 
+    expect(screen.getByLabelText('From')).toHaveValue('2026-08-15');
     expect(period()).toEqual({ dateFrom: '2026-08-15', dateTo: '2026-08-15' });
   });
 
@@ -107,6 +99,7 @@ describe('PeriodFilter', () => {
 
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '' } });
 
+    expect(screen.getByLabelText('From')).toHaveValue('2026-09-01');
     expect(period()).toEqual(SEPTEMBER);
     expect(useTransactionsStore.getState().preset).toBe('this-month');
   });

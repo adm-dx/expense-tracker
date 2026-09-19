@@ -1,4 +1,10 @@
 import { INestApplication } from '@nestjs/common';
+import type {
+  Category,
+  PaginatedResponse,
+  Transaction,
+  TransactionSummary,
+} from '@expense-tracker/types';
 import {
   bearer,
   createTestApp,
@@ -6,7 +12,12 @@ import {
   request,
   TestUser,
 } from '@tests/setup/app';
-import { disconnectDatabase, resetDatabase } from '@tests/setup/prisma';
+import { expectJson } from '@tests/setup/http';
+import {
+  clearTransactions,
+  disconnectDatabase,
+  resetDatabase,
+} from '@tests/setup/prisma';
 
 let app: INestApplication;
 let user: TestUser;
@@ -14,15 +25,20 @@ let categoryId: string;
 
 beforeAll(async () => {
   app = await createTestApp();
+  await resetDatabase();
+  // Registration hashes a password over HTTP; once per file is enough, since
+  // these tests only ever add transactions.
+  user = await registerUser(app);
+  const categories = await expectJson<Category[]>(
+    request(app.getHttpServer())
+      .get('/categories')
+      .set(...bearer(user))
+  );
+  categoryId = categories[0]!.id;
 });
 
 beforeEach(async () => {
-  await resetDatabase();
-  user = await registerUser(app);
-  const categories = await request(app.getHttpServer())
-    .get('/categories')
-    .set(...bearer(user));
-  categoryId = categories.body[0].id;
+  await clearTransactions();
 });
 
 afterAll(async () => {
@@ -93,11 +109,11 @@ describe('GET /transactions query validation', () => {
       .get(`/transactions${query}`)
       .set(...bearer(user));
 
-  it('returns a paginated envelope with defaults', async () => {
-    const response = await list('');
+  const listOk = (query: string) =>
+    expectJson<PaginatedResponse<Transaction>>(list(query));
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
+  it('returns a paginated envelope with defaults', async () => {
+    expect(await listOk('')).toEqual({
       items: [],
       total: 0,
       page: 1,
@@ -106,10 +122,7 @@ describe('GET /transactions query validation', () => {
   });
 
   it.each([10, 20, 50])('accepts pageSize=%i', async (pageSize) => {
-    const response = await list(`?pageSize=${pageSize}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body.pageSize).toBe(pageSize);
+    expect((await listOk(`?pageSize=${pageSize}`)).pageSize).toBe(pageSize);
   });
 
   it.each(['15', '0', '100', 'abc', '-10'])(
@@ -134,10 +147,7 @@ describe('GET /transactions query validation', () => {
   );
 
   it('accepts the last allowed page', async () => {
-    const response = await list('?page=1000000');
-
-    expect(response.status).toBe(200);
-    expect(response.body.items).toEqual([]);
+    expect((await listOk('?page=1000000')).items).toEqual([]);
   });
 
   it.each(['2026-02-30', 'yesterday', '09/10/2026'])(
@@ -173,14 +183,39 @@ describe('GET /transactions/summary query validation', () => {
       .get(`/transactions/summary${query}`)
       .set(...bearer(user));
 
-  it('defaults to the current UTC month', async () => {
+  const summaryOk = (query: string) =>
+    expectJson<TransactionSummary>(summary(query));
+
+  it('defaults to the whole current UTC month', async () => {
+    const before = new Date();
     const response = await summary('');
-    const now = new Date();
+    const after = new Date();
 
     expect(response.status).toBe(200);
-    expect(new Date(response.body.dateFrom).getTime()).toBe(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+    const dateFrom = new Date(response.body.dateFrom);
+    const dateTo = new Date(response.body.dateTo);
+    // Asserted against the response itself, so a run that crosses midnight on
+    // the 1st can't fail: "now" must simply fall inside the month returned.
+    expect(dateFrom.toISOString()).toBe(
+      new Date(
+        Date.UTC(dateFrom.getUTCFullYear(), dateFrom.getUTCMonth(), 1)
+      ).toISOString()
     );
+    expect(dateTo.toISOString()).toBe(
+      new Date(
+        Date.UTC(
+          dateFrom.getUTCFullYear(),
+          dateFrom.getUTCMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999
+        )
+      ).toISOString()
+    );
+    expect(dateFrom.getTime()).toBeLessThanOrEqual(before.getTime());
+    expect(dateTo.getTime()).toBeGreaterThanOrEqual(after.getTime());
     expect(response.body).toMatchObject({
       totalIncome: '0.00',
       totalExpense: '0.00',
@@ -190,20 +225,18 @@ describe('GET /transactions/summary query validation', () => {
   });
 
   it('accepts month with year', async () => {
-    const response = await summary('?month=9&year=2026');
-
-    expect(response.status).toBe(200);
-    expect(response.body.dateFrom).toBe('2026-09-01T00:00:00.000Z');
-    expect(response.body.dateTo).toBe('2026-09-30T23:59:59.999Z');
+    expect(await summaryOk('?month=9&year=2026')).toMatchObject({
+      dateFrom: '2026-09-01T00:00:00.000Z',
+      dateTo: '2026-09-30T23:59:59.999Z',
+    });
   });
 
   it('accepts an explicit date range', async () => {
-    const response = await summary(
+    const result = await summaryOk(
       '?dateFrom=2026-09-01T00:00:00.000Z&dateTo=2026-09-10T23:59:59.999Z'
     );
 
-    expect(response.status).toBe(200);
-    expect(response.body.dateTo).toBe('2026-09-10T23:59:59.999Z');
+    expect(result.dateTo).toBe('2026-09-10T23:59:59.999Z');
   });
 
   it.each([
@@ -237,7 +270,7 @@ describe('POST /transactions body validation', () => {
     const response = await create(validBody());
 
     expect(response.status).toBe(201);
-    expect(response.body).toMatchObject({
+    expect(response.body as Transaction).toMatchObject({
       amount: '12.50',
       type: 'EXPENSE',
       description: null,
