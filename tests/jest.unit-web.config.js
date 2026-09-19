@@ -13,7 +13,9 @@ const createJestConfig = nextJest({
 module.exports = createJestConfig({
   displayName: 'unit-web',
   rootDir: path.join(__dirname, '..'),
-  roots: ['<rootDir>/tests/unit/web'],
+  // The sources are listed too so coverage can find files no test loads;
+  // `testRegex` keeps them from being picked up as tests.
+  roots: ['<rootDir>/tests/unit/web', '<rootDir>/apps/web/src'],
   testRegex: '.*\\.spec\\.tsx?$',
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/tests/setup/web-setup.ts'],

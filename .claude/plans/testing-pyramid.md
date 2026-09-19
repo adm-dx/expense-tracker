@@ -42,51 +42,51 @@ tests/
 ## Чеклист
 
 ### Шаг 0. Ветка и перенос тестов
-- [ ] `git checkout -b test/testing-pyramid` от `main` — незакоммиченные правки (перенос spec-файлов в `tests/unit`, `tests/jest.config.js`, `tests/tsconfig.json`, скрипты в `package.json`, раздел Testing в `CLAUDE.md`) переезжают в новую ветку вместе с переключением.
-- [ ] Закоммитить этот перенос отдельным коммитом (`npm test` перед коммитом должен быть зелёным).
-- [ ] Положить план в `.claude/plans/testing-pyramid.md`.
+- [x] `git checkout -b test/testing-pyramid` от `main` — незакоммиченные правки (перенос spec-файлов в `tests/unit`, `tests/jest.config.js`, `tests/tsconfig.json`, скрипты в `package.json`, раздел Testing в `CLAUDE.md`) переезжают в новую ветку вместе с переключением.
+- [x] Закоммитить этот перенос отдельным коммитом (`npm test` перед коммитом должен быть зелёным).
+- [x] Положить план в `.claude/plans/testing-pyramid.md`.
 
 ### Шаг 1. Инфраструктура тестовой БД
-- [ ] В `docker/docker-compose.yml` добавить сервис `postgres-test` (`expense-tracker-postgres-test`, порт `5433`, БД `expense_tracker_test`, **без** volume — данные одноразовые, healthcheck как у основного).
-- [ ] В корневой `package.json`: `db:test:start`, `db:test:stop` (docker compose up/down конкретного сервиса).
-- [ ] `tests/setup/env.ts`: `DATABASE_URL` из `TEST_DATABASE_URL` (дефолт `postgresql://expense_tracker:dev_password@localhost:5433/expense_tracker_test?schema=public`), `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET`/сроки жизни — фиксированные тестовые значения. Прод-`.env` не читаем, чтобы тесты не ходили в dev-базу.
-- [ ] `tests/setup/global-setup.ts`: `prisma migrate deploy` (через `execFileSync`, cwd `apps/api`, `DATABASE_URL` из окружения тестов) — один раз на прогон.
-- [ ] `tests/setup/prisma.ts`: singleton `PrismaClient` + `resetDatabase()` (`TRUNCATE "transactions", "categories", "refresh_tokens", "users" RESTART IDENTITY CASCADE`) + `disconnect()`.
-- [ ] Добавить в `.env.example` закомментированный `TEST_DATABASE_URL` и описание в `CLAUDE.md`.
+- [x] В `docker/docker-compose.yml` добавить сервис `postgres-test` (`expense-tracker-postgres-test`, порт `5433`, БД `expense_tracker_test`, **без** volume — данные одноразовые, healthcheck как у основного).
+- [x] В корневой `package.json`: `db:test:start`, `db:test:stop` (docker compose up/down конкретного сервиса).
+- [x] `tests/setup/env.ts`: `DATABASE_URL` из `TEST_DATABASE_URL` (дефолт `postgresql://expense_tracker:dev_password@localhost:5433/expense_tracker_test?schema=public`), `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET`/сроки жизни — фиксированные тестовые значения. Прод-`.env` не читаем, чтобы тесты не ходили в dev-базу.
+- [x] `tests/setup/global-setup.ts`: `prisma migrate deploy` (через `execFileSync`, cwd `apps/api`, `DATABASE_URL` из окружения тестов) — один раз на прогон.
+- [x] `tests/setup/prisma.ts`: singleton `PrismaClient` + `resetDatabase()` (`TRUNCATE "transactions", "categories", "refresh_tokens", "users" RESTART IDENTITY CASCADE`) + `disconnect()`.
+- [x] Добавить в `.env.example` закомментированный `TEST_DATABASE_URL` и описание в `CLAUDE.md`.
 
 ### Шаг 2. Конфигурация раннеров
-- [ ] `apps/web/package.json`: добавить devDeps (`jest`, `jest-environment-jsdom`, `@testing-library/*`).
-- [ ] `tests/jest.unit-api.config.js` — текущий конфиг (node, `roots: tests/unit/api`).
-- [ ] `tests/jest.unit-web.config.js` — через `next/jest` (`createJestConfig({ dir: 'apps/web' })`), `testEnvironment: jsdom`, `setupFilesAfterEach: tests/setup/jest-dom.ts`, `moduleNameMapper` для `@/` → `apps/web/src`.
-- [ ] `tests/jest.config.js` → `projects: [unit-api, unit-web]`, чтобы `npm test` оставался быстрым и без БД.
-- [ ] `tests/jest.integration.config.js` и `tests/jest.e2e.config.js`: node-окружение, `globalSetup`, `setupFiles: tests/setup/env.ts`, `maxWorkers: 1` (общая БД), `testTimeout: 30000`.
-- [ ] Скрипты в корне: `test` (unit), `test:integration`, `test:e2e`, `test:all` (последовательно), `test:cov`. В `apps/api/package.json` — `test:e2e` на новый конфиг вместо несуществующего `./test/jest-e2e.json`.
-- [ ] `tests/tsconfig.json`: добавить `@web/*` → `apps/web/src/*`, `jsx: preserve`, типы `@testing-library/jest-dom`.
+- [x] `apps/web/package.json`: добавить devDeps (`jest`, `jest-environment-jsdom`, `@testing-library/*`).
+- [x] `tests/jest.unit-api.config.js` — текущий конфиг (node, `roots: tests/unit/api`).
+- [x] `tests/jest.unit-web.config.js` — через `next/jest` (`createJestConfig({ dir: 'apps/web' })`), `testEnvironment: jsdom`, `setupFilesAfterEach: tests/setup/jest-dom.ts`, `moduleNameMapper` для `@/` → `apps/web/src`.
+- [x] `tests/jest.config.js` → `projects: [unit-api, unit-web]`, чтобы `npm test` оставался быстрым и без БД.
+- [x] `tests/jest.integration.config.js` и `tests/jest.e2e.config.js`: node-окружение, `globalSetup`, `setupFiles: tests/setup/env.ts`, `maxWorkers: 1` (общая БД), `testTimeout: 30000`.
+- [x] Скрипты в корне: `test` (unit), `test:integration`, `test:e2e`, `test:all` (последовательно), `test:cov`. В `apps/api/package.json` — `test:e2e` на новый конфиг вместо несуществующего `./test/jest-e2e.json`.
+- [x] `tests/tsconfig.json`: добавить `@web/*` → `apps/web/src/*`, `jsx: preserve`, типы `@testing-library/jest-dom`.
 
 ### Шаг 3. Юнит-тесты фронтенда (`tests/unit/web`)
-- [ ] `shared/lib/period.spec.ts` — границы всех пресетов (включая переход через январь и високосный февраль), `formatPeriod`, стабильность при фиксированном «сегодня» (fake timers).
-- [ ] `shared/lib/format.spec.ts` — `formatAmount` (+/−), `formatCurrency`, `toIsoDate`, `toIsoEndOfDay` (`23:59:59.999Z` — регрессия на потерянный последний день), `toDateInputValue`.
-- [ ] `features/transaction/upsert/schema.spec.ts` — сумма (ноль, отрицательная, три знака, верхний предел), описание > 255, формат даты.
-- [ ] `entities/transaction/store.spec.ts` (мок `shared/api/transactions-api`) — `setPeriod` сбрасывает страницу; `fetch` шлёт конец дня; откат страницы при опустевшей последней; `reset()` инвалидирует ответ «на лету».
-- [ ] `entities/session/store.spec.ts` — `setSession`/`clearSession` вызывают `resetRegisteredStores()`, данные категорий/транзакций не переживают смену пользователя.
-- [ ] `features/transaction/period-filter/period-filter.spec.tsx` (RTL + user-event) — выбор пресета меняет период в сторе; правка «From» за «To» подтягивает вторую границу, а не шлёт инвертированный диапазон.
+- [x] `shared/lib/period.spec.ts` — границы всех пресетов (включая переход через январь и високосный февраль), `formatPeriod`, стабильность при фиксированном «сегодня» (fake timers).
+- [x] `shared/lib/format.spec.ts` — `formatAmount` (+/−), `formatCurrency`, `toIsoDate`, `toIsoEndOfDay` (`23:59:59.999Z` — регрессия на потерянный последний день), `toDateInputValue`.
+- [x] `features/transaction/upsert/schema.spec.ts` — сумма (ноль, отрицательная, три знака, верхний предел), описание > 255, формат даты.
+- [x] `entities/transaction/store.spec.ts` (мок `shared/api/transactions-api`) — `setPeriod` сбрасывает страницу; `fetch` шлёт конец дня; откат страницы при опустевшей последней; `reset()` инвалидирует ответ «на лету».
+- [x] `entities/session/store.spec.ts` — `setSession`/`clearSession` вызывают `resetRegisteredStores()`, данные категорий/транзакций не переживают смену пользователя.
+- [x] `features/transaction/period-filter/period-filter.spec.tsx` (RTL + user-event) — выбор пресета меняет период в сторе; правка «From» за «To» подтягивает вторую границу, а не шлёт инвертированный диапазон.
 
 ### Шаг 4. Интеграционные тесты API (`tests/integration/api`)
-- [ ] Вынести настройку приложения из `apps/api/src/main.ts` в `apps/api/src/app.config.ts` (`configureApp(app)`: `ValidationPipe` + CORS), чтобы тесты поднимали приложение ровно с теми же правилами. `main.ts` использует её же.
-- [ ] `tests/setup/app.ts`: `createTestApp()` — `Test.createTestingModule({ imports: [AppModule] })` + `configureApp` + `app.init()`; хелпер `registerUser(app)` возвращает токены и `userId`.
-- [ ] `transactions.validation.spec.ts` — `pageSize=15`, `page=0`, `page` выше максимума, нестрогая дата, лишнее поле в теле → 400 с понятным сообщением; без токена → 401.
-- [ ] `transactions.repository.spec.ts` (реальная БД) — порядок и счётчики пагинации, включительность границ `dateFrom`/`dateTo`, фильтр по типу и категории, `sumByTypeAndCategory` совпадает с суммой строк списка.
-- [ ] `categories.spec.ts` — `createMany({ skipDuplicates })` идемпотентен; дубль имени → 409; удаление категории с транзакциями → 409.
-- [ ] `auth.spec.ts` — регистрация создаёт 8 дефолтных категорий; ротация refresh-токена; повторное использование старого токена отзывает все.
-- [ ] `resetDatabase()` в `beforeEach`, `app.close()` + `disconnect()` в `afterAll`.
+- [x] Вынести настройку приложения из `apps/api/src/main.ts` в `apps/api/src/app.config.ts` (`configureApp(app)`: `ValidationPipe` + CORS), чтобы тесты поднимали приложение ровно с теми же правилами. `main.ts` использует её же.
+- [x] `tests/setup/app.ts`: `createTestApp()` — `Test.createTestingModule({ imports: [AppModule] })` + `configureApp` + `app.init()`; хелпер `registerUser(app)` возвращает токены и `userId`.
+- [x] `transactions.validation.spec.ts` — `pageSize=15`, `page=0`, `page` выше максимума, нестрогая дата, лишнее поле в теле → 400 с понятным сообщением; без токена → 401.
+- [x] `transactions.repository.spec.ts` (реальная БД) — порядок и счётчики пагинации, включительность границ `dateFrom`/`dateTo`, фильтр по типу и категории, `sumByTypeAndCategory` совпадает с суммой строк списка.
+- [x] `categories.spec.ts` — `createMany({ skipDuplicates })` идемпотентен; дубль имени → 409; удаление категории с транзакциями → 409.
+- [x] `auth.spec.ts` — регистрация создаёт 8 дефолтных категорий; ротация refresh-токена; повторное использование старого токена отзывает все.
+- [x] `resetDatabase()` в `beforeEach`, `app.close()` + `disconnect()` в `afterAll`.
 
 ### Шаг 5. E2E (`tests/e2e/api`)
-- [ ] `home-screen.e2e-spec.ts` — один сквозной сценарий через HTTP (supertest): регистрация → категории по умолчанию → создание 25 транзакций → пагинация 10/20/50 → сводка сходится с суммой строк за тот же период → редактирование → удаление → выход → 401 на старый refresh-токен.
-- [ ] Проверить, что «последний день периода» попадает и в список, и в сводку (транзакция с временем 18:45 последнего дня).
+- [x] `home-screen.e2e-spec.ts` — один сквозной сценарий через HTTP (supertest): регистрация → категории по умолчанию → создание 25 транзакций → пагинация 10/20/50 → сводка сходится с суммой строк за тот же период → редактирование → удаление → выход → 401 на старый refresh-токен.
+- [x] Проверить, что «последний день периода» попадает и в список, и в сводку (транзакция с временем 18:45 последнего дня).
 
 ### Шаг 6. Документация и проверка
-- [ ] `CLAUDE.md`: раздел Testing — уровни, где что лежит, команды, как поднять тестовую БД.
-- [ ] Прогнать всё, поправить найденное, обновить `.claude/plans/testing-pyramid.md` разделом «Отклонения при реализации».
+- [x] `CLAUDE.md`: раздел Testing — уровни, где что лежит, команды, как поднять тестовую БД.
+- [x] Прогнать всё, поправить найденное, обновить `.claude/plans/testing-pyramid.md` разделом «Отклонения при реализации».
 
 ## Verification
 
@@ -96,3 +96,21 @@ tests/
 4. Регрессии, которые новые тесты обязаны ловить (проверить, временно откатив фикс): `toIsoEndOfDay` → полночь, `@Max` у `page`, сброс сторов при `setSession`.
 5. `npm run build --workspaces`, `npx tsc --noEmit` в `apps/web`, `npm run lint --workspace=apps/web` — без ошибок; `apps/api` собирается (spec-файлы в `dist` не попадают).
 6. Дев-база `expense_tracker_dev` после прогонов не изменилась (тесты ходят только на :5433).
+
+## Отклонения при реализации
+
+- **Профиль compose и `--wait`.** `postgres-test` висит на профиле `test`, иначе `npm run db:start` (`up -d` без имён сервисов) поднимал бы и его. `db:test:start` использует `--wait`, чтобы скрипт возвращался, когда БД уже healthy. Данные лежат в `tmpfs`, а не «без volume»: у образа postgres объявлен `VOLUME`, и без `tmpfs` Docker создал бы анонимный том.
+- **Защита от записи в dev-базу — в двух местах.** `assertTestDatabase()` (имя БД обязано оканчиваться на `_test`) вызывается и в `tests/setup/env.ts`/`prisma.ts`, и в `createTestApp()`: клиент Prisma самого приложения читает `DATABASE_URL`, а `ConfigModule` подхватил бы корневой `.env`, если бы переменная не была уже выставлена.
+- **`jsx: react-jsx`** в `tests/tsconfig.json` вместо `preserve` из плана: этот конфиг только для `tsc --noEmit`, а компоненты в тестах трансформирует SWC через `next/jest`.
+- **Приложение слушает фиксированный порт** (`app.listen(0)` в `createTestApp`). Один раз из ~15 прогонов запрос вернул `301` вместо `400`; при повторах воспроизвести не удалось, причина не установлена. Подозрение: supertest на каждый запрос занимает новый эфемерный порт, и по переиспользованному порту мог ответить посторонний процесс. После правки 0 сбоев на серии прогонов, но это профилактика, а не доказанный фикс.
+- **`waitForLastLogin`.** После успешного `POST /auth/login` `lastLoginAt` обновляет асинхронный обработчик события. Если следующий тест успевал очистить таблицы раньше, Prisma писал в лог «No record was found for an update» (1 из ~9 прогонов). Тесты теперь дожидаются обработчика; за 15 прогонов после правки шума нет.
+- **`@IsJWT()` у `RefreshTokenDto`.** Строка, не похожая на JWT, отсекается валидацией (`400`), а JWT с испорченной подписью — авторизацией (`401`, для logout — тихий `204`). Первая версия тестов ожидала `401` для `'garbage'` — ошибка была в тесте, не в коде.
+- **Покрытие.** `roots` unit-проектов включают исходники приложений, иначе Jest не видит файлы, которые тесты не загружают, и процент получается завышенным (было 70%, честные цифры: **42%** у юнит-тестов, **95%** строк API у интеграционных, **87%** у одного e2e). Интеграционное покрытие — отдельным скриптом `test:cov:integration`.
+- **Сверх плана:** `summary-store.spec.ts`, `store-reset.spec.ts`, `category/store.spec.ts`, `tenant-isolation.spec.ts` (пользователь не видит и не меняет чужие транзакции и категории; ответ `404`, а не `403`), а также тесты идемпотентности `createMany`, отказа `DELETE` категории с транзакциями и дрейфа десятичных сумм.
+- **Проверка того, что тесты умеют падать.** Временно ломались исправления из ревью — каждая поломка ловилась: `toIsoEndOfDay` → полночь (4 падения), сброс сторов при `setSession` (1), инвалидация `reset()` (1), `@Max` у `page` (2), `skipDuplicates` (2), фильтр владельца в `findByIdForUser` (3), `lte` → `lt` у `dateTo` (4), summary без периода в e2e (4).
+
+## Не сделано / что дальше
+
+- Компонентных тестов на фронтенде мало: покрыт только `PeriodFilter`. Форма транзакции, диалог удаления, таблица с пагинацией, `AuthGuard` и шапка не тестируются (покрытие у виджетов 0%).
+- E2E — на уровне HTTP. Браузерных сценариев (Playwright) нет, поэтому связка «React + реальный API» проверяется только вручную.
+- В CI тесты не подключены (в репозитории нет конфигурации CI).

@@ -7,7 +7,9 @@ const path = require('node:path');
 module.exports = {
   displayName: 'unit-api',
   rootDir: path.join(__dirname, '..'),
-  roots: ['<rootDir>/tests/unit/api'],
+  // The sources are listed too so coverage can find files no test loads;
+  // `testRegex` keeps them from being picked up as tests.
+  roots: ['<rootDir>/tests/unit/api', '<rootDir>/apps/api/src'],
   testRegex: '.*\\.spec\\.ts$',
   moduleFileExtensions: ['js', 'json', 'ts'],
   transform: {

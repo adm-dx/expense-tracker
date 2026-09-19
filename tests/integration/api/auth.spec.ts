@@ -7,7 +7,12 @@ import {
   request,
   TestUser,
 } from '@tests/setup/app';
-import { disconnectDatabase, prisma, resetDatabase } from '@tests/setup/prisma';
+import {
+  disconnectDatabase,
+  prisma,
+  resetDatabase,
+  waitForLastLogin,
+} from '@tests/setup/prisma';
 
 let app: INestApplication;
 
@@ -116,6 +121,7 @@ describe('POST /auth/login', () => {
     expect(response.status).toBe(200);
     expect(response.body.user.id).toBe(user.id);
     expect(typeof response.body.accessToken).toBe('string');
+    await waitForLastLogin(user.id);
   });
 
   it('records the login time', async () => {
@@ -124,14 +130,7 @@ describe('POST /auth/login', () => {
       password: user.password,
     }).expect(200);
 
-    // The update runs from an event handler, so give it a moment.
-    let lastLoginAt: Date | null = null;
-    for (let attempt = 0; attempt < 20 && !lastLoginAt; attempt++) {
-      lastLoginAt = (
-        await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
-      ).lastLoginAt;
-      if (!lastLoginAt) await new Promise((resolve) => setTimeout(resolve, 50));
-    }
+    const lastLoginAt = await waitForLastLogin(user.id);
     expect(lastLoginAt).toBeInstanceOf(Date);
   });
 
@@ -309,6 +308,7 @@ describe('POST /auth/logout', () => {
       email: user.email,
       password: user.password,
     });
+    await waitForLastLogin(user.id);
 
     await post('/auth/logout', { refreshToken: user.refreshToken }).expect(204);
 

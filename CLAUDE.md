@@ -51,22 +51,49 @@ npx prisma studio
 
 ### Testing
 
-Unit tests live in the top-level `tests/` directory, not next to the sources:
+All tests live in the top-level `tests/` directory, not next to the sources, in three levels:
 
-- `tests/unit/api/**` mirrors `apps/api/src/**` (e.g. `tests/unit/api/modules/auth/auth.service.spec.ts` covers `apps/api/src/modules/auth/auth.service.ts`).
-- Specs import the code under test through the `@api/*` alias (`@api/modules/auth/auth.service`), never by a relative path into `apps/`. The alias is declared in both `tests/tsconfig.json` (`paths`) and `tests/jest.config.js` (`moduleNameMapper`), so add new aliases in both places.
-- `tests/jest.config.js` is the single Jest config; `rootDir` is the repo root. `apps/api`'s test scripts point at it, so the commands below are equivalent.
+| Level       | Where                                | What it runs against                                                             | Command                    |
+| ----------- | ------------------------------------ | -------------------------------------------------------------------------------- | -------------------------- |
+| Unit (API)  | `tests/unit/api/**`                  | Classes built with `new`, every collaborator mocked                              | `npm test`                 |
+| Unit (web)  | `tests/unit/web/**`                  | Pure logic, stores and components under jsdom (Jest + React Testing Library)     | `npm test`                 |
+| Integration | `tests/integration/api/**`           | The real Nest app (guards, pipes, controllers, repositories) and a real Postgres | `npm run test:integration` |
+| E2E         | `tests/e2e/api/**` (`*.e2e-spec.ts`) | Whole user journeys over HTTP                                                    | `npm run test:e2e`         |
 
 ```bash
-# From the repo root
-npm test                    # Run all unit tests
-npm run test:watch          # Watch mode
-npm run test:cov            # With coverage (written to ./coverage)
+npm test                    # Unit tests, api + web. No database, no network, ~3s
+npm run test:watch          # Unit tests in watch mode
+npm run test:cov            # Unit tests with coverage (written to ./coverage)
+npm run test:cov:integration # API coverage from the integration tests (needs the test database)
 
-# From apps/api (same suite, same config)
-cd apps/api
-npm test
+npm run db:test:start       # Start the throwaway test database (Postgres on :5433)
+npm run test:integration    # Integration tests (needs the test database)
+npm run test:e2e            # E2E scenarios (needs the test database)
+npm run test:all            # All three, in order
+npm run db:test:stop        # Remove the test database
 ```
+
+`apps/api` has the same `test`, `test:integration` and `test:e2e` scripts; they use the same configs.
+
+**Layout and conventions**
+
+- `tests/unit/api/**` mirrors `apps/api/src/**` (e.g. `tests/unit/api/modules/auth/auth.service.spec.ts` covers `apps/api/src/modules/auth/auth.service.ts`); `tests/unit/web/**` mirrors `apps/web/src/**`.
+- Import the code under test through an alias, never a relative path into `apps/`: `@api/*` (`apps/api/src`), `@web/*` and `@/*` (`apps/web/src`), `@tests/*` (`tests/`). An alias must be declared in `tests/tsconfig.json` (`paths`) **and** in the Jest configs that use it (`moduleNameMapper`).
+- One Jest config per level: `tests/jest.unit-api.config.js`, `jest.unit-web.config.js` (via `next/jest`), `jest.integration.config.js`, `jest.e2e.config.js`. `tests/jest.config.js` only combines the two unit projects, so plain `npm test` stays fast and database-free.
+- Shared setup is in `tests/setup/`: `app.ts` (boots the real app the way `main.ts` does, via `configureApp`; `registerUser`), `prisma.ts` (`resetDatabase`), `seed.ts` (direct DB fixtures), `web-setup.ts` (jest-dom and jsdom polyfills for Radix).
+
+**The test database**
+
+- `postgres-test` in `docker/docker-compose.yml` runs on **:5433** with its data in tmpfs, behind the `test` compose profile, so `npm run db:start` never starts it and nothing survives a restart.
+- Tests never read the repo `.env`. They use `TEST_DATABASE_URL` (default: the :5433 database) and refuse to run against any database whose name doesn't end in `_test`, so they can't touch your dev data.
+- Migrations are applied once per run by `tests/setup/global-setup.ts`. Each integration/e2e file empties the tables in `beforeEach` (or `beforeAll` for a journey), and files run serially (`maxWorkers: 1`) because they share one database.
+
+**What goes where**
+
+- Business rules in a service or handler, with everything else mocked: **unit**.
+- Anything that depends on Nest wiring (validation pipe rules, guards) or on SQL (filters, ordering, pagination, aggregates, uniqueness, foreign keys): **integration**. Don't mock Prisma to test a query.
+- A user-visible flow that spans several endpoints and must stay consistent (the table and the summary cards agreeing, session lifecycle): **e2e**.
+- When fixing a bug, add the regression test at the lowest level that reproduces it.
 
 ### Code Quality
 
