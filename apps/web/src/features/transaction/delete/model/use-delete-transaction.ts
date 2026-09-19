@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { useTransactionsStore } from '@/entities/transaction';
+import { useSummaryStore, useTransactionsStore } from '@/entities/transaction';
 import { transactionsApi } from '@/shared/api/transactions-api';
 import { ApiError } from '@/shared/api/http-client';
 import { getErrorMessage } from '@/shared/lib/error';
@@ -17,11 +17,13 @@ export function useDeleteTransaction(options: { onSuccess?: () => void }) {
       toast.success('Transaction deleted');
       options.onSuccess?.();
       void useTransactionsStore.getState().fetch();
+      void useSummaryStore.getState().fetch();
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         // Already gone (e.g. deleted in another tab): just resync the table.
         options.onSuccess?.();
         void useTransactionsStore.getState().fetch();
+        void useSummaryStore.getState().fetch();
       } else {
         toast.error(getErrorMessage(err));
       }

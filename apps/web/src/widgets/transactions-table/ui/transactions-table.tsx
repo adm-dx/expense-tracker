@@ -36,6 +36,7 @@ export function TransactionsTable() {
   const error = useTransactionsStore((state) => state.error);
   const page = useTransactionsStore((state) => state.page);
   const pageSize = useTransactionsStore((state) => state.pageSize);
+  const period = useTransactionsStore((state) => state.period);
   const fetchTransactions = useTransactionsStore((state) => state.fetch);
   const loadCategories = useCategoriesStore((state) => state.load);
   const categoryMap = useCategoryMap();
@@ -49,7 +50,7 @@ export function TransactionsTable() {
 
   useEffect(() => {
     void fetchTransactions();
-  }, [page, pageSize, fetchTransactions]);
+  }, [page, pageSize, period, fetchTransactions]);
 
   function openAction(kind: 'edit' | 'delete', transaction: Transaction) {
     setSelected(transaction);

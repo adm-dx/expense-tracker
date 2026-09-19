@@ -2,7 +2,9 @@ import type {
   CreateTransactionRequest,
   ListTransactionsParams,
   PaginatedResponse,
+  SummaryParams,
   Transaction,
+  TransactionSummary,
   UpdateTransactionRequest,
 } from '@expense-tracker/types';
 import { httpClient } from './http-client';
@@ -10,6 +12,10 @@ import { httpClient } from './http-client';
 export const transactionsApi = {
   list: (params: ListTransactionsParams = {}) =>
     httpClient.get<PaginatedResponse<Transaction>>('/transactions', {
+      params: { ...params },
+    }),
+  summary: (params: SummaryParams = {}) =>
+    httpClient.get<TransactionSummary>('/transactions/summary', {
       params: { ...params },
     }),
   create: (body: CreateTransactionRequest) =>

@@ -19,6 +19,11 @@ export function formatAmount(amount: string, type: TransactionType): string {
   return `${sign}${amountFormatter.format(Number(amount))}`;
 }
 
+/** Plain amount, signed only when negative (balances). */
+export function formatCurrency(amount: string): string {
+  return amountFormatter.format(Number(amount));
+}
+
 export function formatDate(iso: string): string {
   return dateFormatter.format(new Date(iso));
 }

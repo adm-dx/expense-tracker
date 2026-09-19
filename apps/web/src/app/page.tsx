@@ -1,4 +1,5 @@
 import { AppHeader } from '@/widgets/app-header';
+import { TransactionsSummary } from '@/widgets/transactions-summary';
 import { TransactionsTable } from '@/widgets/transactions-table';
 import { AddTransactionButton } from '@/features/transaction/upsert';
 import { AuthGuard } from '@/entities/session';
@@ -12,6 +13,7 @@ export default function HomePage() {
           <h1 className="text-2xl font-semibold">Transactions</h1>
           <AddTransactionButton />
         </div>
+        <TransactionsSummary />
         <TransactionsTable />
       </main>
     </AuthGuard>

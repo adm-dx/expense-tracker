@@ -6,7 +6,7 @@ import type {
 } from '@expense-tracker/types';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { useTransactionsStore } from '@/entities/transaction';
+import { useSummaryStore, useTransactionsStore } from '@/entities/transaction';
 import { transactionsApi } from '@/shared/api/transactions-api';
 import { getErrorMessage } from '@/shared/lib/error';
 import { toDateInputValue, toIsoDate } from '@/shared/lib/format';
@@ -60,6 +60,7 @@ export function useUpsertTransaction(options: {
       }
       options.onSuccess?.();
       void useTransactionsStore.getState().fetch();
+      void useSummaryStore.getState().fetch();
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
