@@ -251,39 +251,101 @@ describe('TransactionsService', () => {
   });
 
   describe('summary', () => {
-    it('queries the UTC month range', async () => {
+    const SEPTEMBER = {
+      dateFrom: new Date('2026-09-01T00:00:00.000Z'),
+      dateTo: new Date('2026-09-30T23:59:59.999Z'),
+    };
+
+    it('turns month and year into an inclusive UTC month range', async () => {
       repository.sumByTypeAndCategory.mockResolvedValue([]);
 
-      await service.summary('user-1', 9, 2026);
+      await service.summary('user-1', { month: 9, year: 2026 });
 
       expect(repository.sumByTypeAndCategory).toHaveBeenCalledWith(
         'user-1',
-        new Date('2026-09-01T00:00:00.000Z'),
-        new Date('2026-10-01T00:00:00.000Z')
+        SEPTEMBER
       );
     });
 
     it('rolls December over to January of the next year', async () => {
       repository.sumByTypeAndCategory.mockResolvedValue([]);
 
-      await service.summary('user-1', 12, 2026);
+      await service.summary('user-1', { month: 12, year: 2026 });
+
+      expect(repository.sumByTypeAndCategory).toHaveBeenCalledWith('user-1', {
+        dateFrom: new Date('2026-12-01T00:00:00.000Z'),
+        dateTo: new Date('2026-12-31T23:59:59.999Z'),
+      });
+    });
+
+    it('uses an explicit dateFrom/dateTo range', async () => {
+      repository.sumByTypeAndCategory.mockResolvedValue([]);
+
+      const result = await service.summary('user-1', {
+        dateFrom: '2026-09-01T00:00:00.000Z',
+        dateTo: '2026-09-10T00:00:00.000Z',
+      });
+
+      expect(repository.sumByTypeAndCategory).toHaveBeenCalledWith('user-1', {
+        dateFrom: new Date('2026-09-01T00:00:00.000Z'),
+        dateTo: new Date('2026-09-10T00:00:00.000Z'),
+      });
+      expect(result.dateFrom).toEqual(new Date('2026-09-01T00:00:00.000Z'));
+      expect(result.dateTo).toEqual(new Date('2026-09-10T00:00:00.000Z'));
+    });
+
+    it('defaults to the current UTC month', async () => {
+      repository.sumByTypeAndCategory.mockResolvedValue([]);
+      jest.useFakeTimers().setSystemTime(new Date('2026-09-16T12:00:00.000Z'));
+
+      try {
+        await service.summary('user-1', {});
+      } finally {
+        jest.useRealTimers();
+      }
 
       expect(repository.sumByTypeAndCategory).toHaveBeenCalledWith(
         'user-1',
-        new Date('2026-12-01T00:00:00.000Z'),
-        new Date('2027-01-01T00:00:00.000Z')
+        SEPTEMBER
       );
     });
 
-    it('returns zero totals for an empty month', async () => {
+    it('rejects month without year', async () => {
+      await expect(
+        service.summary('user-1', { month: 9 })
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.sumByTypeAndCategory).not.toHaveBeenCalled();
+    });
+
+    it('rejects mixing month/year with a date range', async () => {
+      await expect(
+        service.summary('user-1', {
+          month: 9,
+          year: 2026,
+          dateFrom: '2026-09-01T00:00:00.000Z',
+        })
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.sumByTypeAndCategory).not.toHaveBeenCalled();
+    });
+
+    it('rejects dateFrom after dateTo', async () => {
+      await expect(
+        service.summary('user-1', {
+          dateFrom: '2026-10-01T00:00:00.000Z',
+          dateTo: '2026-09-01T00:00:00.000Z',
+        })
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.sumByTypeAndCategory).not.toHaveBeenCalled();
+    });
+
+    it('returns zero totals for an empty period', async () => {
       repository.sumByTypeAndCategory.mockResolvedValue([]);
 
-      const result = await service.summary('user-1', 9, 2026);
+      const result = await service.summary('user-1', { month: 9, year: 2026 });
 
       expect(repository.findCategoriesByIds).not.toHaveBeenCalled();
       expect(result).toEqual({
-        month: 9,
-        year: 2026,
+        ...SEPTEMBER,
         totalIncome: '0.00',
         totalExpense: '0.00',
         balance: '0.00',
@@ -315,7 +377,7 @@ describe('TransactionsService', () => {
         makeCategory({ id: 'cat-3', name: 'Salary' }),
       ] as never);
 
-      const result = await service.summary('user-1', 9, 2026);
+      const result = await service.summary('user-1', { month: 9, year: 2026 });
 
       expect(result.totalIncome).toBe('1000.00');
       expect(result.totalExpense).toBe('0.30');

@@ -71,12 +71,12 @@ export class TransactionsRepository {
 
   async sumByTypeAndCategory(
     userId: string,
-    from: Date,
-    to: Date
+    filters: TransactionFilters
   ): Promise<TransactionSumRow[]> {
+    // Same `where` as the list, so totals always match the rows on screen.
     const groups = await this.prisma.transaction.groupBy({
       by: ['type', 'categoryId'],
-      where: { userId, date: { gte: from, lt: to } },
+      where: this.buildWhere(userId, filters),
       _sum: { amount: true },
     });
     return groups.map((group) => ({

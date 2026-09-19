@@ -88,9 +88,19 @@ export interface TransactionCategorySummary {
   total: string;
 }
 
+export interface SummaryParams {
+  /** Whole UTC month; must be paired with `year` and not mixed with the range. */
+  month?: number;
+  year?: number;
+  /** ISO 8601; both bounds are inclusive. */
+  dateFrom?: string;
+  dateTo?: string;
+}
+
 export interface TransactionSummary {
-  month: number;
-  year: number;
+  /** The period that was actually applied, both bounds inclusive. */
+  dateFrom: string;
+  dateTo: string;
   totalIncome: string;
   totalExpense: string;
   balance: string;

@@ -20,6 +20,7 @@ import {
   DEFAULT_TRANSACTION_PAGE_SIZE,
   ListTransactionsQuery,
 } from './dto/list-transactions.query';
+import { SummaryQuery } from './dto/summary.query';
 
 const FOREIGN_KEY_VIOLATION = 'P2003';
 
@@ -39,13 +40,7 @@ export class TransactionsService {
     if (query.type) filters.type = query.type;
     if (query.categoryId) filters.categoryId = query.categoryId;
 
-    if (
-      filters.dateFrom &&
-      filters.dateTo &&
-      filters.dateFrom > filters.dateTo
-    ) {
-      throw new BadRequestException('dateFrom must not be after dateTo');
-    }
+    this.assertRangeOrder(filters.dateFrom, filters.dateTo);
 
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? DEFAULT_TRANSACTION_PAGE_SIZE;
@@ -117,16 +112,13 @@ export class TransactionsService {
 
   async summary(
     userId: string,
-    month: number,
-    year: number
+    query: SummaryQuery
   ): Promise<TransactionSummary> {
-    const from = new Date(Date.UTC(year, month - 1, 1));
-    const to = new Date(Date.UTC(year, month, 1));
+    const { dateFrom, dateTo } = this.resolveSummaryPeriod(query);
 
     const rows = await this.transactionsRepository.sumByTypeAndCategory(
       userId,
-      from,
-      to
+      { dateFrom, dateTo }
     );
     const categoryIds = [...new Set(rows.map((row) => row.categoryId))];
     const categories = categoryIds.length
@@ -159,8 +151,8 @@ export class TransactionsService {
       });
 
     return {
-      month,
-      year,
+      dateFrom,
+      dateTo,
       totalIncome: totalIncome.toFixed(2),
       totalExpense: totalExpense.toFixed(2),
       balance: totalIncome.minus(totalExpense).toFixed(2),
@@ -201,6 +193,60 @@ export class TransactionsService {
     );
     if (!category) {
       throw new NotFoundException('Category not found');
+    }
+  }
+
+  // Either month+year or dateFrom/dateTo; defaults to the current UTC month.
+  private resolveSummaryPeriod(query: SummaryQuery): {
+    dateFrom: Date;
+    dateTo: Date;
+  } {
+    const hasMonthOrYear = query.month !== undefined || query.year !== undefined;
+    const hasRange = query.dateFrom !== undefined || query.dateTo !== undefined;
+
+    if (hasMonthOrYear && hasRange) {
+      throw new BadRequestException(
+        'Use either month and year or dateFrom and dateTo, not both'
+      );
+    }
+
+    if (hasMonthOrYear) {
+      if (query.month === undefined || query.year === undefined) {
+        throw new BadRequestException('month and year must be used together');
+      }
+      return this.monthRange(query.year, query.month);
+    }
+
+    if (!hasRange) {
+      const now = new Date();
+      return this.monthRange(now.getUTCFullYear(), now.getUTCMonth() + 1);
+    }
+
+    const current = new Date();
+    const fallback = this.monthRange(
+      current.getUTCFullYear(),
+      current.getUTCMonth() + 1
+    );
+    const dateFrom = query.dateFrom ? new Date(query.dateFrom) : fallback.dateFrom;
+    const dateTo = query.dateTo ? new Date(query.dateTo) : fallback.dateTo;
+    this.assertRangeOrder(dateFrom, dateTo);
+    return { dateFrom, dateTo };
+  }
+
+  /** Whole UTC month with both bounds inclusive. */
+  private monthRange(year: number, month: number): {
+    dateFrom: Date;
+    dateTo: Date;
+  } {
+    return {
+      dateFrom: new Date(Date.UTC(year, month - 1, 1)),
+      dateTo: new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)),
+    };
+  }
+
+  private assertRangeOrder(dateFrom?: Date, dateTo?: Date): void {
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      throw new BadRequestException('dateFrom must not be after dateTo');
     }
   }
 

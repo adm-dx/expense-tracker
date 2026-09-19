@@ -27,8 +27,10 @@ export interface TransactionCategorySummary {
 }
 
 export interface TransactionSummary {
-  month: number;
-  year: number;
+  /** Start of the period that was applied, inclusive. */
+  dateFrom: Date;
+  /** End of the period that was applied, inclusive. */
+  dateTo: Date;
   totalIncome: string;
   totalExpense: string;
   balance: string;

@@ -1,16 +1,26 @@
 import { Type } from 'class-transformer';
-import { IsInt, Max, Min } from 'class-validator';
+import { IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
 
 export class SummaryQuery {
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(12)
-  month!: number;
+  month?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1970)
   @Max(9999)
-  year!: number;
+  year?: number;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  dateFrom?: string;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  dateTo?: string;
 }
