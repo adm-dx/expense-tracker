@@ -33,6 +33,11 @@ export function toIsoDate(date: string): string {
   return `${date}T00:00:00.000Z`;
 }
 
+/** `2026-09-16` → `2026-09-16T23:59:59.999Z`, the inclusive end of that day. */
+export function toIsoEndOfDay(date: string): string {
+  return `${date}T23:59:59.999Z`;
+}
+
 /** ISO timestamp → `YYYY-MM-DD` (UTC), the value format of `<input type="date">`. */
 export function toDateInputValue(iso: string): string {
   return iso.slice(0, 10);

@@ -1,6 +1,7 @@
 import type { AuthTokens } from '@expense-tracker/types';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { resetRegisteredStores } from '@/shared/lib/store-reset';
 import type { Session, SessionUser } from './types';
 
 interface SessionState {
@@ -21,19 +22,24 @@ export const useSessionStore = create<SessionState>()(
       accessToken: null,
       refreshToken: null,
       hasHydrated: false,
-      setSession: (session) =>
+      setSession: (session) => {
+        // Another user may have been signed in in this tab.
+        resetRegisteredStores();
         set({
           user: session.user,
           accessToken: session.accessToken,
           refreshToken: session.refreshToken,
-        }),
+        });
+      },
       setTokens: (tokens) =>
         set({
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
         }),
-      clearSession: () =>
-        set({ user: null, accessToken: null, refreshToken: null }),
+      clearSession: () => {
+        resetRegisteredStores();
+        set({ user: null, accessToken: null, refreshToken: null });
+      },
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {

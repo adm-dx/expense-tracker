@@ -6,7 +6,8 @@ import {
 import { create } from 'zustand';
 import { transactionsApi } from '@/shared/api/transactions-api';
 import { getErrorMessage } from '@/shared/lib/error';
-import { toIsoDate } from '@/shared/lib/format';
+import { registerStoreReset } from '@/shared/lib/store-reset';
+import { toIsoDate, toIsoEndOfDay } from '@/shared/lib/format';
 import {
   DEFAULT_PERIOD,
   DEFAULT_PERIOD_PRESET,
@@ -36,7 +37,8 @@ interface TransactionsState {
 
 const DEFAULT_PAGE_SIZE: TransactionPageSize = TRANSACTION_PAGE_SIZES[0];
 
-// Guards against out-of-order responses when page/pageSize change quickly.
+// Guards against out-of-order responses when page/pageSize change quickly,
+// and against responses from a previous session landing after a reset.
 let latestRequestId = 0;
 
 export const useTransactionsStore = create<TransactionsState>()((set, get) => ({
@@ -60,15 +62,16 @@ export const useTransactionsStore = create<TransactionsState>()((set, get) => ({
         page,
         pageSize,
         dateFrom: toIsoDate(period.dateFrom),
-        dateTo: toIsoDate(period.dateTo),
+        dateTo: toIsoEndOfDay(period.dateTo),
       });
       if (requestId !== latestRequestId) return;
 
       const lastPage = Math.max(1, Math.ceil(result.total / pageSize));
       if (result.items.length === 0 && page > lastPage) {
-        // The page emptied out (e.g. its last row was deleted): step back.
-        // Subscribers to `page` trigger the refetch.
+        // The page emptied out (e.g. its last row was deleted): step back and
+        // reload, so the store recovers without relying on a mounted view.
         set({ page: lastPage });
+        await get().fetch();
         return;
       }
       set({ items: result.items, total: result.total, status: 'success' });
@@ -77,7 +80,8 @@ export const useTransactionsStore = create<TransactionsState>()((set, get) => ({
       set({ status: 'error', error: getErrorMessage(err) });
     }
   },
-  reset: () =>
+  reset: () => {
+    latestRequestId++;
     set({
       items: [],
       total: 0,
@@ -87,5 +91,8 @@ export const useTransactionsStore = create<TransactionsState>()((set, get) => ({
       preset: DEFAULT_PERIOD_PRESET,
       status: 'idle',
       error: null,
-    }),
+    });
+  },
 }));
+
+registerStoreReset(() => useTransactionsStore.getState().reset());

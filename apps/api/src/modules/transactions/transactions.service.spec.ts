@@ -328,6 +328,13 @@ describe('TransactionsService', () => {
       expect(repository.sumByTypeAndCategory).not.toHaveBeenCalled();
     });
 
+    it('rejects a one-sided range', async () => {
+      await expect(
+        service.summary('user-1', { dateFrom: '2026-09-01T00:00:00.000Z' })
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.sumByTypeAndCategory).not.toHaveBeenCalled();
+    });
+
     it('rejects dateFrom after dateTo', async () => {
       await expect(
         service.summary('user-1', {
