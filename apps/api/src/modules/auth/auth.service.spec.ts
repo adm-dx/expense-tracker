@@ -71,6 +71,21 @@ describe('AuthService', () => {
       });
     });
 
+    it('still registers when seeding default categories fails', async () => {
+      commandBus.execute
+        .mockResolvedValueOnce(makePublicUser())
+        .mockRejectedValueOnce(new Error('db is down'));
+
+      const result = await service.register({
+        name: 'Jane',
+        email: 'jane@example.com',
+        password: 'super-secret',
+      });
+
+      expect(result.user).toEqual(makePublicUser());
+      expect(result.accessToken).toBe('access');
+    });
+
     it('propagates ConflictException for a duplicate email', async () => {
       commandBus.execute.mockRejectedValue(
         new ConflictException('A user with this email already exists'),

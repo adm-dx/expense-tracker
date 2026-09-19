@@ -222,13 +222,13 @@ export class TransactionsService {
       return this.monthRange(now.getUTCFullYear(), now.getUTCMonth() + 1);
     }
 
-    const current = new Date();
-    const fallback = this.monthRange(
-      current.getUTCFullYear(),
-      current.getUTCMonth() + 1
-    );
-    const dateFrom = query.dateFrom ? new Date(query.dateFrom) : fallback.dateFrom;
-    const dateTo = query.dateTo ? new Date(query.dateTo) : fallback.dateTo;
+    if (query.dateFrom === undefined || query.dateTo === undefined) {
+      throw new BadRequestException(
+        'dateFrom and dateTo must be used together'
+      );
+    }
+    const dateFrom = new Date(query.dateFrom);
+    const dateTo = new Date(query.dateTo);
     this.assertRangeOrder(dateFrom, dateTo);
     return { dateFrom, dateTo };
   }

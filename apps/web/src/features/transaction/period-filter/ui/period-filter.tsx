@@ -28,8 +28,21 @@ export function PeriodFilter() {
   }
 
   function handleDateChange(bound: 'dateFrom' | 'dateTo', value: string) {
+    // `min`/`max` only mark the input invalid, so an inverted range still
+    // reaches here (e.g. typing a year); drag the other bound along instead
+    // of asking the API for a range it rejects.
     if (!value) return;
-    setPeriod({ ...period, [bound]: value }, 'custom');
+    const next =
+      bound === 'dateFrom'
+        ? {
+            dateFrom: value,
+            dateTo: value > period.dateTo ? value : period.dateTo,
+          }
+        : {
+            dateFrom: value < period.dateFrom ? value : period.dateFrom,
+            dateTo: value,
+          };
+    setPeriod(next, 'custom');
   }
 
   return (

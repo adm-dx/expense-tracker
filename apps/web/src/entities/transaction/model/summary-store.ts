@@ -2,7 +2,8 @@ import type { TransactionSummary } from '@expense-tracker/types';
 import { create } from 'zustand';
 import { transactionsApi } from '@/shared/api/transactions-api';
 import { getErrorMessage } from '@/shared/lib/error';
-import { toIsoDate } from '@/shared/lib/format';
+import { toIsoDate, toIsoEndOfDay } from '@/shared/lib/format';
+import { registerStoreReset } from '@/shared/lib/store-reset';
 import { useTransactionsStore } from './store';
 
 type LoadStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -16,7 +17,8 @@ interface SummaryState {
   reset: () => void;
 }
 
-// Guards against out-of-order responses when the period changes quickly.
+// Guards against out-of-order responses when the period changes quickly,
+// and against responses from a previous session landing after a reset.
 let latestRequestId = 0;
 
 export const useSummaryStore = create<SummaryState>()((set) => ({
@@ -30,7 +32,7 @@ export const useSummaryStore = create<SummaryState>()((set) => ({
     try {
       const summary = await transactionsApi.summary({
         dateFrom: toIsoDate(period.dateFrom),
-        dateTo: toIsoDate(period.dateTo),
+        dateTo: toIsoEndOfDay(period.dateTo),
       });
       if (requestId !== latestRequestId) return;
       set({ summary, status: 'success' });
@@ -39,5 +41,11 @@ export const useSummaryStore = create<SummaryState>()((set) => ({
       set({ status: 'error', error: getErrorMessage(err) });
     }
   },
-  reset: () => set({ summary: null, status: 'idle', error: null }),
+  // Bumping the id drops responses in flight, so they can't refill the store.
+  reset: () => {
+    latestRequestId++;
+    set({ summary: null, status: 'idle', error: null });
+  },
 }));
+
+registerStoreReset(() => useSummaryStore.getState().reset());

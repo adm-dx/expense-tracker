@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { CommandBus, EventBus, QueryBus } from '@nestjs/cqrs';
 import * as bcrypt from 'bcryptjs';
 import {
@@ -18,6 +18,8 @@ const BCRYPT_SALT_ROUNDS = 10;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
@@ -32,10 +34,19 @@ export class AuthService {
     const user = await this.commandBus.execute<CreateUserCommand, PublicUser>(
       new CreateUserCommand(dto.name, dto.email, passwordHash),
     );
-    // Awaited so the client sees the categories right after registration.
-    await this.commandBus.execute<CreateDefaultCategoriesCommand, void>(
-      new CreateDefaultCategoriesCommand(user.id),
-    );
+    // Awaited so the client sees the categories right after registration, but
+    // never fatal: the account exists at this point and its email is taken, so
+    // failing the request would leave the user unable to register again.
+    try {
+      await this.commandBus.execute<CreateDefaultCategoriesCommand, void>(
+        new CreateDefaultCategoriesCommand(user.id),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to create default categories for user ${user.id}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
     const tokens = await this.tokenService.issueTokens(user);
     return { ...tokens, user };
   }

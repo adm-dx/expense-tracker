@@ -1,9 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCategoriesStore } from '@/entities/category';
 import { useSessionStore } from '@/entities/session';
-import { useSummaryStore, useTransactionsStore } from '@/entities/transaction';
 import { authApi } from '@/shared/api/auth-api';
 
 export function useLogout() {
@@ -18,10 +16,8 @@ export function useLogout() {
         // best-effort: clear the local session regardless of API outcome
       }
     }
+    // clearSession also resets the category/transaction/summary stores.
     clearSession();
-    useTransactionsStore.getState().reset();
-    useSummaryStore.getState().reset();
-    useCategoriesStore.getState().reset();
     router.replace('/login');
   }
 
