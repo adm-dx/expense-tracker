@@ -10,11 +10,12 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest --config ../../tests/jest.config.js",
-    "test:watch": "jest --config ../../tests/jest.config.js --watch",
-    "test:cov": "jest --config ../../tests/jest.config.js --coverage",
+    "test": "jest --config ../../tests/jest.unit-api.config.js",
+    "test:watch": "jest --config ../../tests/jest.unit-api.config.js --watch",
+    "test:cov": "jest --config ../../tests/jest.unit-api.config.js --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --config ../../tests/jest.config.js --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ../../tests/jest.e2e.config.js",
+    "test:integration": "jest --config ../../tests/jest.integration.config.js"
   },
   "dependencies": {
     "@expense-tracker/types": "*",

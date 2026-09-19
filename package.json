@@ -17,11 +17,16 @@
     "test": "jest --config tests/jest.config.js",
     "test:watch": "jest --config tests/jest.config.js --watch",
     "test:cov": "jest --config tests/jest.config.js --coverage",
+    "test:integration": "jest --config tests/jest.integration.config.js",
+    "test:e2e": "jest --config tests/jest.e2e.config.js",
+    "test:all": "npm test && npm run test:integration && npm run test:e2e",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "db:start": "docker compose -f docker/docker-compose.yml up -d",
     "db:stop": "docker compose -f docker/docker-compose.yml down",
-    "db:restart": "npm run db:stop && npm run db:start"
+    "db:restart": "npm run db:stop && npm run db:start",
+    "db:test:start": "docker compose -f docker/docker-compose.yml --profile test up -d --wait postgres-test",
+    "db:test:stop": "docker compose -f docker/docker-compose.yml --profile test rm -sf postgres-test"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
