@@ -188,3 +188,18 @@ Current models in `apps/api/prisma/schema.prisma`:
 - The PostgreSQL container persists data in a Docker volume - use `npm run db:stop` to stop (keeps data) or `docker compose -f docker/docker-compose.yml down -v` to remove data
 - Frontend and backend must both be running for full functionality
 - Changes to `packages/types` require rebuilding apps that depend on it
+
+## Git Workflow (GitHub Flow)
+
+- `main` is always deployable and protected by convention: never commit or push directly to it.
+- Every piece of work (feature, fix, refactor, docs) starts on a new short-lived branch created from an up-to-date `main`:
+  ```bash
+  git checkout main && git pull --ff-only
+  git checkout -b <type>/<short-description>
+  ```
+- Branch naming: `<type>/<kebab-case-description>`, where `<type>` is one of `feat`, `fix`, `refactor`, `chore`, `docs`, `test`. Scope the description to the app when relevant, e.g. `feat/web-home-screen`, `feat/api-transactions`, `fix/web-login-redirect`.
+- One branch = one focused change. Don't mix unrelated work; start a separate branch instead.
+- Commit small, logical steps with descriptive messages; push the branch to `origin` regularly.
+- Merge into `main` only through a Pull Request on GitHub. Before opening/merging, `npm run lint`, `npm run build` and relevant tests must pass.
+- Keep the branch current by merging or rebasing `origin/main` into it when `main` moves ahead.
+- After the PR is merged, delete the branch (remote and local) and start the next task from a fresh `main`. Don't reuse a merged branch for new work.

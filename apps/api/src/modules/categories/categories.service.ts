@@ -8,6 +8,7 @@ import { PublicCategory } from './types';
 import { CategoriesRepository } from './categories.repository';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { DEFAULT_CATEGORIES } from './default-categories';
 
 const UNIQUE_CONSTRAINT_VIOLATION = 'P2002';
 const FOREIGN_KEY_VIOLATION = 'P2003';
@@ -42,6 +43,12 @@ export class CategoriesService {
       });
       return this.toPublic(category);
     });
+  }
+
+  async createDefaults(userId: string): Promise<void> {
+    await this.categoriesRepository.createMany(
+      DEFAULT_CATEGORIES.map((category) => ({ userId, ...category }))
+    );
   }
 
   async update(

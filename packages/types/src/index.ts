@@ -1,9 +1,19 @@
+// Dates are ISO 8601 strings: this is the JSON wire format of the API.
 export interface User {
   id: string;
   email: string;
   name: string;
-  createdAt: Date;
-  updatedAt: Date;
+  isActive: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface Category {
@@ -11,8 +21,8 @@ export interface Category {
   name: string;
   color: string;
   icon: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateCategoryRequest {
@@ -31,9 +41,9 @@ export interface Transaction {
   amount: string;
   type: TransactionType;
   description: string | null;
-  date: Date;
+  date: string;
   categoryId: string;
-  createdAt: Date;
+  createdAt: string;
 }
 
 export interface CreateTransactionRequest {
@@ -60,6 +70,15 @@ export interface TransactionFilters {
   categoryId?: string;
 }
 
+export const TRANSACTION_PAGE_SIZES = [10, 20, 50] as const;
+
+export type TransactionPageSize = (typeof TRANSACTION_PAGE_SIZES)[number];
+
+export interface ListTransactionsParams extends TransactionFilters {
+  page?: number;
+  pageSize?: TransactionPageSize;
+}
+
 export interface TransactionCategorySummary {
   categoryId: string;
   name: string;
@@ -69,9 +88,19 @@ export interface TransactionCategorySummary {
   total: string;
 }
 
+export interface SummaryParams {
+  /** Whole UTC month; must be paired with `year` and not mixed with the range. */
+  month?: number;
+  year?: number;
+  /** ISO 8601; both bounds are inclusive. */
+  dateFrom?: string;
+  dateTo?: string;
+}
+
 export interface TransactionSummary {
-  month: number;
-  year: number;
+  /** The period that was actually applied, both bounds inclusive. */
+  dateFrom: string;
+  dateTo: string;
   totalIncome: string;
   totalExpense: string;
   balance: string;

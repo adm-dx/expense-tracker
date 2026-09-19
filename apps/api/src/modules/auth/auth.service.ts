@@ -8,6 +8,7 @@ import {
   PublicUser,
   UserCredentials,
 } from '../users/contracts';
+import { CreateDefaultCategoriesCommand } from '../categories/contracts';
 import { UserLoggedInEvent } from './contracts';
 import { TokenService, AuthTokens } from './token.service';
 import { LoginDto } from './dto/login.dto';
@@ -30,6 +31,10 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
     const user = await this.commandBus.execute<CreateUserCommand, PublicUser>(
       new CreateUserCommand(dto.name, dto.email, passwordHash),
+    );
+    // Awaited so the client sees the categories right after registration.
+    await this.commandBus.execute<CreateDefaultCategoriesCommand, void>(
+      new CreateDefaultCategoriesCommand(user.id),
     );
     const tokens = await this.tokenService.issueTokens(user);
     return { ...tokens, user };

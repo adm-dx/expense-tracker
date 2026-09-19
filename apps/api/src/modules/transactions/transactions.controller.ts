@@ -39,7 +39,7 @@ export class TransactionsController {
   // Declared before ':id' so "summary" is not captured as an id.
   @Get('summary')
   summary(@CurrentUser() user: RequestUser, @Query() query: SummaryQuery) {
-    return this.transactionsService.summary(user.sub, query.month, query.year);
+    return this.transactionsService.summary(user.sub, query);
   }
 
   @Get(':id')
