@@ -5,7 +5,7 @@ import jest from 'eslint-plugin-jest';
 
 /**
  * Flat config for the API sources and the test suites. `apps/web` keeps its
- * own Next.js config (`next lint`).
+ * own Next.js flat config (`apps/web/eslint.config.mjs`).
  */
 export default tseslint.config(
   {
@@ -16,6 +16,7 @@ export default tseslint.config(
       'coverage/**',
       'apps/web/**',
       'packages/*/dist/**',
+      'apps/api/src/generated/**',
     ],
   },
   js.configs.recommended,

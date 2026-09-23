@@ -3,6 +3,9 @@ node_modules/
 .pnp
 .pnp.js
 
+# Generated Prisma Client (`prisma generate`, run on `npm install`)
+apps/api/src/generated/
+
 # Testing
 coverage/
 *.lcov

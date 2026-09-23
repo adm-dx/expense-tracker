@@ -22,6 +22,7 @@ module.exports = {
     '!**/*.d.ts',
     '!**/index.ts',
     '!apps/api/src/main.ts',
+    '!apps/api/src/generated/**',
     // Generated shadcn/ui primitives: not our code to cover.
     '!apps/web/src/shared/ui/**',
   ],

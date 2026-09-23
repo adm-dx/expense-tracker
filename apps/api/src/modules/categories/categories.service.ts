@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Category, Prisma } from '@prisma/client';
+import { Category, Prisma } from '../../generated/prisma/client';
 import { PublicCategory } from './types';
 import { CategoriesRepository } from './categories.repository';
 import { CreateCategoryDto } from './dto/create-category.dto';

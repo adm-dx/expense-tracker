@@ -1,7 +1,8 @@
 {
   "extends": "@expense-tracker/config/tsconfig.base.json",
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
@@ -11,10 +12,10 @@
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": "./",
     "incremental": true,
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
     "skipLibCheck": true,
+    "types": ["node"],
     "paths": {
       "@expense-tracker/types": ["../../packages/types/src"]
     }

@@ -1,5 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { Prisma, User } from '@prisma/client';
+import { Prisma, User } from '../../generated/prisma/client';
 import { UsersRepository } from './users.repository';
 import { PublicUser, UserCredentials } from './contracts';
 

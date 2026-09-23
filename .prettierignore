@@ -4,6 +4,7 @@ build/
 .next/
 out/
 coverage/
+apps/api/src/generated/
 *.min.js
 *.min.css
 pnpm-lock.yaml

@@ -15,7 +15,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { SearchCategoriesQuery } from './dto/search-categories.query';
 import {
   CurrentUser,
-  RequestUser,
+  type RequestUser,
 } from '../auth/decorators/current-user.decorator';
 
 @Controller('categories')

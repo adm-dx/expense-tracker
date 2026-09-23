@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@api/generated/prisma/client';
 import { UsersService } from '@api/modules/users/users.service';
 import { UsersRepository } from '@api/modules/users/users.repository';
 

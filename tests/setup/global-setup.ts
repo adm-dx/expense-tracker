@@ -5,9 +5,15 @@ import { applyTestEnv, TEST_DATABASE_URL } from './env';
 /** Applies all migrations to the test database once per run. */
 export default function globalSetup(): void {
   applyTestEnv();
+  const apiDir = path.join(__dirname, '../../apps/api');
+  // Run the Prisma CLI through node rather than `npx`: on Windows `npx` is a
+  // .cmd shim that execFileSync can't spawn without a shell.
+  const prismaCli = require.resolve('prisma/build/index.js', {
+    paths: [apiDir],
+  });
   try {
-    execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
-      cwd: path.join(__dirname, '../../apps/api'),
+    execFileSync(process.execPath, [prismaCli, 'migrate', 'deploy'], {
+      cwd: apiDir,
       env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
       stdio: 'pipe',
     });

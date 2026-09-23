@@ -1,5 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@api/generated/prisma/client';
 import { CategoriesService } from '@api/modules/categories/categories.service';
 import { CategoriesRepository } from '@api/modules/categories/categories.repository';
 import { DEFAULT_CATEGORIES } from '@api/modules/categories/default-categories';
