@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Category, Prisma, Transaction, TransactionType } from '@prisma/client';
+import {
+  Category,
+  Prisma,
+  Transaction,
+  TransactionType,
+} from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface TransactionFilters {

@@ -1,4 +1,4 @@
-import { TransactionType } from '@prisma/client';
+import { TransactionType } from '../../generated/prisma/client';
 
 export interface PublicTransaction {
   id: string;

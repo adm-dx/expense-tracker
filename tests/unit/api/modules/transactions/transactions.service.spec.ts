@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Prisma, TransactionType } from '@prisma/client';
+import { Prisma, TransactionType } from '@api/generated/prisma/client';
 import { TransactionsService } from '@api/modules/transactions/transactions.service';
 import { TransactionsRepository } from '@api/modules/transactions/transactions.repository';
 

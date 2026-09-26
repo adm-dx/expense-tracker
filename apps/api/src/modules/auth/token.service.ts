@@ -1,10 +1,13 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { QueryBus } from '@nestjs/cqrs';
 import { createHash } from 'crypto';
 import { GetUserByIdQuery, PublicUser } from '../users/contracts';
 import { RefreshTokensRepository } from './refresh-tokens.repository';
+
+/** A duration jsonwebtoken understands, e.g. `15m` or `7d`. */
+type JwtExpiresIn = NonNullable<JwtSignOptions['expiresIn']>;
 
 export interface AuthTokens {
   accessToken: string;
@@ -112,7 +115,7 @@ export class TokenService {
       { sub: userId, email },
       {
         secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
-        expiresIn: this.configService.getOrThrow<string>(
+        expiresIn: this.configService.getOrThrow<JwtExpiresIn>(
           'JWT_ACCESS_EXPIRES_IN',
         ),
       },
@@ -124,7 +127,7 @@ export class TokenService {
       { sub: userId, jti },
       {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.configService.getOrThrow<string>(
+        expiresIn: this.configService.getOrThrow<JwtExpiresIn>(
           'JWT_REFRESH_EXPIRES_IN',
         ),
       },

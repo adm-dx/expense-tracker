@@ -1,4 +1,4 @@
-import { Prisma, TransactionType } from '@prisma/client';
+import { Prisma, TransactionType } from '@api/generated/prisma/client';
 import { prisma } from './prisma';
 
 let counter = 0;

@@ -7,8 +7,8 @@
 ```
 expense-tracker/
 ├── apps/
-│   ├── web/          # Next.js 15 фронтенд
-│   └── api/          # NestJS бэкенд
+│   ├── web/          # Next.js 16 фронтенд
+│   └── api/          # NestJS 12 бэкенд
 ├── packages/
 │   ├── types/        # Общие TypeScript типы
 │   └── config/       # Общие конфигурации
@@ -18,21 +18,34 @@ expense-tracker/
 ## Стек технологий
 
 ### Frontend
-- **Next.js 15** с App Router
+
+- **Next.js 16** с App Router
 - **React 19**
-- **TypeScript** (strict mode)
-- **Tailwind CSS**
+- **TypeScript 6** (strict mode)
+- **Tailwind CSS 3** (намеренно без перехода на v4)
+- **shadcn/ui** на **Radix UI**
+- **Zustand 5** — состояние
+- **React Hook Form 7** + **Zod 4** — формы и валидация
 
 ### Backend
-- **NestJS 11**
-- **Prisma** ORM
+
+- **NestJS 12** (+ `@nestjs/cqrs`, `@nestjs/jwt`, `@nestjs/config`)
+- **Prisma 7** ORM с драйвер-адаптером `@prisma/adapter-pg`
 - **PostgreSQL 16**
-- **TypeScript** (strict mode)
+- **TypeScript 6** (strict mode)
+- **class-validator** — валидация DTO
 
 ### Инструменты
+
 - **npm workspaces** — управление монорепозиторием
-- **ESLint + Prettier** — линтинг и форматирование
+- **ESLint 9 + Prettier 3** — линтинг и форматирование
+- **Jest 30** + React Testing Library + Supertest — тесты
 - **Docker Compose** — локальная база данных
+
+### Требования
+
+- **Node.js 24.9+** (NestJS 12 работает с 20.19+ / 22.12+, но тестам нужен `require(esm)` в Jest, а он есть только с 24.9)
+- **Docker** — для PostgreSQL
 
 ## Установка
 
@@ -41,6 +54,8 @@ expense-tracker/
 ```bash
 npm install
 ```
+
+Prisma Client генерируется автоматически после установки (в `apps/api/src/generated/prisma`, не хранится в git).
 
 ### 2. Настройте переменные окружения
 
@@ -59,9 +74,10 @@ npm run db:start
 ```bash
 cd apps/api
 npx prisma migrate dev
-npx prisma generate
 cd ../..
 ```
+
+Prisma CLI берёт `DATABASE_URL` из корневого `.env` (через `apps/api/prisma.config.ts`).
 
 ## Запуск проекта
 

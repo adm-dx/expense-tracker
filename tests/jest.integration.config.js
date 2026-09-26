@@ -22,7 +22,11 @@ module.exports = {
     '^@tests/(.*)$': '<rootDir>/tests/$1',
     '^@expense-tracker/types$': '<rootDir>/packages/types/src',
   },
-  collectCoverageFrom: ['apps/api/src/**/*.ts', '!apps/api/src/main.ts'],
+  collectCoverageFrom: [
+    'apps/api/src/**/*.ts',
+    '!apps/api/src/main.ts',
+    '!apps/api/src/generated/**',
+  ],
   coverageDirectory: '<rootDir>/coverage/integration',
   globalSetup: '<rootDir>/tests/setup/global-setup.ts',
   setupFiles: ['<rootDir>/tests/setup/apply-env.ts'],

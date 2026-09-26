@@ -16,7 +16,7 @@ import { ListTransactionsQuery } from './dto/list-transactions.query';
 import { SummaryQuery } from './dto/summary.query';
 import {
   CurrentUser,
-  RequestUser,
+  type RequestUser,
 } from '../auth/decorators/current-user.decorator';
 
 @Controller('transactions')

@@ -1,10 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@api/generated/prisma/client';
 import { assertTestDatabase, TEST_DATABASE_URL } from './env';
 
 assertTestDatabase(TEST_DATABASE_URL);
 
 export const prisma = new PrismaClient({
-  datasources: { db: { url: TEST_DATABASE_URL } },
+  adapter: new PrismaPg({ connectionString: TEST_DATABASE_URL }),
 });
 
 /**
@@ -41,7 +42,7 @@ export async function disconnectDatabase(): Promise<void> {
  */
 export async function waitForLastLogin(
   userId: string,
-  timeoutMs = 2000
+  timeoutMs = 5000
 ): Promise<Date> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {

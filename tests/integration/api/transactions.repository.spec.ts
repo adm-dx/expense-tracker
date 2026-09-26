@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { Prisma, TransactionType } from '@prisma/client';
+import { Prisma, TransactionType } from '@api/generated/prisma/client';
 import { TransactionsRepository } from '@api/modules/transactions/transactions.repository';
 import type { TransactionFilters } from '@api/modules/transactions/transactions.repository';
 import { createTestApp } from '@tests/setup/app';

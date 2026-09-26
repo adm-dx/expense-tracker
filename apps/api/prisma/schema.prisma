@@ -1,11 +1,16 @@
+// The connection URL lives in prisma.config.ts.
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
+// Generated into the sources (gitignored) so `nest build` compiles it with
+// the app; import it from `src/generated/prisma/client`.
 generator client {
-  provider = "prisma-client-js"
-  output   = "../../../node_modules/.prisma/client"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  // Extensionless relative imports, so ts-jest resolves them to the .ts files.
+  importFileExtension = ""
 }
 
 model User {

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Transaction, TransactionType } from '@prisma/client';
+import { Prisma, Transaction, TransactionType } from '../../generated/prisma/client';
 import {
   PaginatedResponse,
   PublicTransaction,
