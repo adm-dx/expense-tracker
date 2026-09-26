@@ -230,6 +230,71 @@ export interface CurrentWeather {
   observedAt: string;
 }
 
+/** A settlement found by name for `GET /weather/places`. */
+export interface Place {
+  /** "Belgrade, RS" */
+  name: string;
+  lat: number;
+  lon: number;
+}
+
+export const THEMES = ['light', 'dark', 'system'] as const;
+
+export type Theme = (typeof THEMES)[number];
+
+// shadcn/ui color themes for Tailwind v3: base colors first, then accents.
+export const COLOR_SCHEMES = [
+  'slate',
+  'zinc',
+  'stone',
+  'gray',
+  'neutral',
+  'red',
+  'rose',
+  'orange',
+  'green',
+  'blue',
+  'yellow',
+  'violet',
+] as const;
+
+export type ColorScheme = (typeof COLOR_SCHEMES)[number];
+
+export const LOCATION_MODES = ['auto', 'manual'] as const;
+
+export type LocationMode = (typeof LOCATION_MODES)[number];
+
+/** Where the weather is shown for: the browser's position or a chosen place. */
+export type LocationSetting =
+  | { mode: 'auto' }
+  | { mode: 'manual'; name: string; lat: number; lon: number };
+
+export interface UserSettings {
+  theme: Theme;
+  colorScheme: ColorScheme;
+  /** Amounts are shown in it; new transactions start in it. */
+  currency: Currency;
+  location: LocationSetting;
+}
+
+export const DEFAULT_USER_SETTINGS: UserSettings = {
+  theme: 'system',
+  colorScheme: 'slate',
+  currency: DEFAULT_CURRENCY,
+  location: { mode: 'auto' },
+};
+
+/** `PATCH /settings`: top-level keys are merged, `location` is replaced. */
+export type UpdateUserSettingsRequest = Partial<UserSettings>;
+
+/** `PUT /settings`: every key is required. */
+export type ReplaceUserSettingsRequest = UserSettings;
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export interface RegisterRequest {
   name: string;
   email: string;
