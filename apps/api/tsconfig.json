@@ -15,10 +15,7 @@
     "incremental": true,
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
     "skipLibCheck": true,
-    "types": ["node"],
-    "paths": {
-      "@expense-tracker/types": ["../../packages/types/src"]
-    }
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test"]

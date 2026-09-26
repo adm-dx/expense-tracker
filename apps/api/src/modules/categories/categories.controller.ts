@@ -13,6 +13,7 @@ import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { SearchCategoriesQuery } from './dto/search-categories.query';
+import { DeleteCategoryQuery } from './dto/delete-category.query';
 import {
   CurrentUser,
   type RequestUser,
@@ -51,7 +52,11 @@ export class CategoriesController {
 
   @HttpCode(204)
   @Delete(':id')
-  remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.categoriesService.remove(user.sub, id);
+  remove(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Query() query: DeleteCategoryQuery
+  ) {
+    return this.categoriesService.remove(user.sub, id, query.reassignTo);
   }
 }
