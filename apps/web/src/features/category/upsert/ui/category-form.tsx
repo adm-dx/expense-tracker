@@ -54,7 +54,8 @@ export function CategoryForm({
             control={form.control}
             name="icon"
             render={({ field }) => (
-              <FormItem>
+              // A column, so the label sits above the button, level with "Name".
+              <FormItem className="flex flex-col">
                 <FormLabel>Icon</FormLabel>
                 <FormControl>
                   <IconPicker value={field.value} onChange={field.onChange} />
