@@ -7,7 +7,7 @@ import {
 } from '@expense-tracker/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { useCategoriesStore } from '@/entities/category';
+import { CategoryIcon, useCategoriesStore } from '@/entities/category';
 import { todayDateInputValue, toDateInputValue } from '@/shared/lib/format';
 import {
   Button,
@@ -169,10 +169,7 @@ export function TransactionForm({
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       <span className="flex items-center gap-2">
-                        <span
-                          className="size-2.5 rounded-full"
-                          style={{ backgroundColor: category.color }}
-                        />
+                        <CategoryIcon icon={category.icon} />
                         {category.name}
                       </span>
                     </SelectItem>
