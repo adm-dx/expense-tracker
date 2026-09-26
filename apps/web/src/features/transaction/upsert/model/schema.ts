@@ -1,3 +1,4 @@
+import { CURRENCIES } from '@expense-tracker/types';
 import { z } from 'zod';
 
 const MAX_AMOUNT = 9_999_999_999.99;
@@ -12,6 +13,7 @@ export const transactionSchema = z.object({
     .regex(/^\d+(\.\d{1,2})?$/, 'Use a positive number with up to 2 decimals')
     .refine((value) => Number(value) > 0, 'Amount must be greater than 0')
     .refine((value) => Number(value) <= MAX_AMOUNT, 'Amount is too large'),
+  currency: z.enum(CURRENCIES),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a date'),
   description: z.string().trim().max(255, 'At most 255 characters'),
 });

@@ -1,4 +1,4 @@
-import { TransactionType } from '../../../generated/prisma/client';
+import { Currency, TransactionType } from '../../../generated/prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsEnum,
@@ -44,4 +44,9 @@ export class ListTransactionsQuery {
   @Type(() => Number)
   @IsIn(TRANSACTION_PAGE_SIZES)
   pageSize?: number;
+
+  /** Display currency for `convertedAmount`; defaults to RSD. */
+  @IsOptional()
+  @IsEnum(Currency)
+  currency?: Currency;
 }

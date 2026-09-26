@@ -12,7 +12,7 @@ interface SummaryState {
   summary: TransactionSummary | null;
   status: LoadStatus;
   error: string | null;
-  /** Totals for the period held by `useTransactionsStore`. */
+  /** Totals for the period and currency held by `useTransactionsStore`. */
   fetch: () => Promise<void>;
   reset: () => void;
 }
@@ -26,13 +26,15 @@ export const useSummaryStore = create<SummaryState>()((set) => ({
   status: 'idle',
   error: null,
   fetch: async () => {
+    const { period, currency } = useTransactionsStore.getState();
+    if (currency === null) return;
     const requestId = ++latestRequestId;
-    const { period } = useTransactionsStore.getState();
     set({ status: 'loading', error: null });
     try {
       const summary = await transactionsApi.summary({
         dateFrom: toIsoDate(period.dateFrom),
         dateTo: toIsoEndOfDay(period.dateTo),
+        currency,
       });
       if (requestId !== latestRequestId) return;
       set({ summary, status: 'success' });

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   Category,
+  Currency,
   Prisma,
   Transaction,
   TransactionType,
@@ -22,6 +23,7 @@ export interface TransactionPagination {
 export interface TransactionSumRow {
   type: TransactionType;
   categoryId: string;
+  currency: Currency;
   amount: Prisma.Decimal;
 }
 
@@ -80,13 +82,14 @@ export class TransactionsRepository {
   ): Promise<TransactionSumRow[]> {
     // Same `where` as the list, so totals always match the rows on screen.
     const groups = await this.prisma.transaction.groupBy({
-      by: ['type', 'categoryId'],
+      by: ['type', 'categoryId', 'currency'],
       where: this.buildWhere(userId, filters),
       _sum: { amount: true },
     });
     return groups.map((group) => ({
       type: group.type,
       categoryId: group.categoryId,
+      currency: group.currency,
       amount: group._sum.amount ?? new Prisma.Decimal(0),
     }));
   }

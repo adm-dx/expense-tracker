@@ -1,4 +1,4 @@
-import { TransactionType } from '../../../generated/prisma/client';
+import { Currency, TransactionType } from '../../../generated/prisma/client';
 import {
   IsEnum,
   IsISO8601,
@@ -20,6 +20,9 @@ export class CreateTransactionDto {
   @IsPositive()
   @Max(MAX_AMOUNT)
   amount!: number;
+
+  @IsEnum(Currency)
+  currency!: Currency;
 
   @IsEnum(TransactionType)
   type!: TransactionType;

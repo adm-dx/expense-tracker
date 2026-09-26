@@ -20,6 +20,9 @@ function buildUpdate(
   if (Number(values.amount) !== Number(transaction.amount)) {
     body.amount = Number(values.amount);
   }
+  if (values.currency !== transaction.currency) {
+    body.currency = values.currency;
+  }
   if (values.type !== transaction.type) body.type = values.type;
   if (values.categoryId !== transaction.categoryId) {
     body.categoryId = values.categoryId;
@@ -53,6 +56,7 @@ export function useUpsertTransaction(options: {
           type: values.type,
           categoryId: values.categoryId,
           amount: Number(values.amount),
+          currency: values.currency,
           date: toIsoDate(values.date),
           ...(values.description ? { description: values.description } : {}),
         });

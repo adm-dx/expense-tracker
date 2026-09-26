@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { CurrencyHydration } from '@/entities/currency';
 import { SessionHydration } from '@/entities/session';
 import { Toaster } from '@/shared/ui';
 import './globals.css';
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <SessionHydration />
+        <CurrencyHydration />
         {children}
         <Toaster />
       </body>

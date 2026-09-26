@@ -1,4 +1,4 @@
-import type { Category, Transaction } from '@expense-tracker/types';
+import type { Category, TransactionListItem } from '@expense-tracker/types';
 import { useCategoriesStore } from '@web/entities/category/model/store';
 import { useSessionStore } from '@web/entities/session/model/store';
 import { useSummaryStore } from '@web/entities/transaction/model/summary-store';
@@ -19,9 +19,11 @@ const category: Category = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
-const transaction: Transaction = {
+const transaction: TransactionListItem = {
   id: 'tx-a',
   amount: '12.50',
+  currency: 'RSD',
+  convertedAmount: '12.50',
   type: 'EXPENSE',
   description: null,
   date: '2026-09-10T00:00:00.000Z',
@@ -46,6 +48,8 @@ function fillDomainStores() {
       totalExpense: '12.50',
       balance: '-12.50',
       byCategory: [],
+      currency: 'RSD',
+      ratesDate: null,
     },
     status: 'success',
   });

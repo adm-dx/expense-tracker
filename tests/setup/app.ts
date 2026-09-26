@@ -5,20 +5,29 @@ import type { AuthResponse } from '@expense-tracker/types';
 import { sign, type SignOptions } from 'jsonwebtoken';
 import { AppModule } from '@api/app.module';
 import { configureApp } from '@api/app.config';
+import { ExchangeRatesProvider } from '@api/modules/exchange-rates/providers/exchange-rates.provider';
 import { assertTestDatabase } from './env';
+import { FakeExchangeRatesProvider } from './exchange-rates';
 import { expectJson } from './http';
 
 /**
  * Boots the real application (guards, pipes, controllers, repositories) with
- * the same global configuration as `main.ts`.
+ * the same global configuration as `main.ts`. The only stand-in is the
+ * exchange rates provider, so tests never reach the network; pass your own
+ * fake to control it.
  */
-export async function createTestApp(): Promise<INestApplication> {
+export async function createTestApp(
+  ratesProvider: ExchangeRatesProvider = new FakeExchangeRatesProvider()
+): Promise<INestApplication> {
   // Last line of defence: the app's own Prisma client reads DATABASE_URL.
   assertTestDatabase(process.env.DATABASE_URL ?? '');
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
-  }).compile();
+  })
+    .overrideProvider(ExchangeRatesProvider)
+    .useValue(ratesProvider)
+    .compile();
   const app = moduleRef.createNestApplication();
   configureApp(app);
   await app.init();

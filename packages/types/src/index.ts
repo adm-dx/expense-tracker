@@ -35,10 +35,18 @@ export type UpdateCategoryRequest = Partial<CreateCategoryRequest>;
 
 export type TransactionType = 'INCOME' | 'EXPENSE';
 
+export const CURRENCIES = ['RSD', 'EUR', 'HUF'] as const;
+
+export type Currency = (typeof CURRENCIES)[number];
+
+export const DEFAULT_CURRENCY: Currency = 'RSD';
+
 export interface Transaction {
   id: string;
   /** Decimal serialized as a string with two fraction digits, e.g. "12.50" */
   amount: string;
+  /** The currency `amount` was entered in. */
+  currency: Currency;
   type: TransactionType;
   description: string | null;
   date: string;
@@ -46,8 +54,21 @@ export interface Transaction {
   createdAt: string;
 }
 
+export interface TransactionListItem extends Transaction {
+  /** `amount` converted to the requested display currency, two fraction digits. */
+  convertedAmount: string;
+}
+
+export interface TransactionsPage extends PaginatedResponse<TransactionListItem> {
+  /** The currency of every `convertedAmount`. */
+  currency: Currency;
+  /** Date of the exchange rates used; null when no conversion was needed. */
+  ratesDate: string | null;
+}
+
 export interface CreateTransactionRequest {
   amount: number;
+  currency: Currency;
   type: TransactionType;
   description?: string;
   /** ISO 8601 date string */
@@ -57,6 +78,7 @@ export interface CreateTransactionRequest {
 
 export interface UpdateTransactionRequest {
   amount?: number;
+  currency?: Currency;
   type?: TransactionType;
   description?: string | null;
   date?: string;
@@ -77,6 +99,8 @@ export type TransactionPageSize = (typeof TRANSACTION_PAGE_SIZES)[number];
 export interface ListTransactionsParams extends TransactionFilters {
   page?: number;
   pageSize?: TransactionPageSize;
+  /** Display currency for `convertedAmount`; defaults to RSD. */
+  currency?: Currency;
 }
 
 export interface TransactionCategorySummary {
@@ -95,6 +119,8 @@ export interface SummaryParams {
   /** ISO 8601; both bounds are inclusive. */
   dateFrom?: string;
   dateTo?: string;
+  /** Currency of the totals; defaults to RSD. */
+  currency?: Currency;
 }
 
 export interface TransactionSummary {
@@ -105,6 +131,17 @@ export interface TransactionSummary {
   totalExpense: string;
   balance: string;
   byCategory: TransactionCategorySummary[];
+  /** The currency of every total. */
+  currency: Currency;
+  /** Date of the exchange rates used; null when no conversion was needed. */
+  ratesDate: string | null;
+}
+
+/** Today's rates: one `base` unit costs `rates[code]` of each currency. */
+export interface ExchangeRates {
+  base: Currency;
+  date: string;
+  rates: Record<Currency, string>;
 }
 
 export interface RegisterRequest {

@@ -35,7 +35,14 @@ async function remove(
 beforeEach(() => {
   jest.clearAllMocks();
   api.remove.mockResolvedValue(undefined);
-  api.list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 10 });
+  api.list.mockResolvedValue({
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 10,
+    currency: 'RSD',
+    ratesDate: null,
+  });
   api.summary.mockResolvedValue({
     dateFrom: '2026-09-01T00:00:00.000Z',
     dateTo: '2026-09-30T23:59:59.999Z',
@@ -43,8 +50,11 @@ beforeEach(() => {
     totalExpense: '0.00',
     balance: '0.00',
     byCategory: [],
+    currency: 'RSD',
+    ratesDate: null,
   });
   useTransactionsStore.getState().reset();
+  useTransactionsStore.getState().setCurrency('RSD');
   useSummaryStore.getState().reset();
 });
 

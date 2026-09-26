@@ -1,4 +1,4 @@
-import type { Transaction } from '@expense-tracker/types';
+import type { TransactionListItem } from '@expense-tracker/types';
 import { useTransactionsStore } from '@web/entities/transaction/model/store';
 import { transactionsApi } from '@web/shared/api/transactions-api';
 
@@ -10,10 +10,12 @@ const list = transactionsApi.list as jest.MockedFunction<
   typeof transactionsApi.list
 >;
 
-function makeTransaction(id: string): Transaction {
+function makeTransaction(id: string): TransactionListItem {
   return {
     id,
     amount: '12.50',
+    currency: 'RSD',
+    convertedAmount: '12.50',
     type: 'EXPENSE',
     description: null,
     date: '2026-09-10T00:00:00.000Z',
@@ -22,8 +24,15 @@ function makeTransaction(id: string): Transaction {
   };
 }
 
-function page(items: Transaction[], total: number, pageNumber = 1) {
-  return { items, total, page: pageNumber, pageSize: 10 };
+function page(items: TransactionListItem[], total: number, pageNumber = 1) {
+  return {
+    items,
+    total,
+    page: pageNumber,
+    pageSize: 10,
+    currency: 'RSD' as const,
+    ratesDate: null,
+  };
 }
 
 /** A promise settled by hand, to control when a response "arrives". */
@@ -40,7 +49,11 @@ const SEPTEMBER = { dateFrom: '2026-09-01', dateTo: '2026-09-30' };
 beforeEach(() => {
   list.mockReset();
   useTransactionsStore.getState().reset();
-  useTransactionsStore.setState({ period: SEPTEMBER, preset: 'this-month' });
+  useTransactionsStore.setState({
+    period: SEPTEMBER,
+    preset: 'this-month',
+    currency: 'RSD',
+  });
 });
 
 describe('useTransactionsStore', () => {
@@ -98,6 +111,7 @@ describe('useTransactionsStore', () => {
         pageSize: 10,
         dateFrom: '2026-09-01T00:00:00.000Z',
         dateTo: '2026-09-30T23:59:59.999Z',
+        currency: 'RSD',
       });
     });
 
@@ -213,6 +227,59 @@ describe('useTransactionsStore', () => {
         total: 0,
         preset: 'this-month',
         status: 'idle',
+      });
+    });
+  });
+
+  describe('display currency', () => {
+    it('does not fetch before the currency is synced in', async () => {
+      useTransactionsStore.setState({ currency: null });
+
+      await useTransactionsStore.getState().fetch();
+
+      expect(list).not.toHaveBeenCalled();
+      expect(useTransactionsStore.getState().status).toBe('idle');
+    });
+
+    it('asks for the chosen currency and records what came back', async () => {
+      list.mockResolvedValue({
+        ...page([makeTransaction('t1')], 1),
+        currency: 'EUR',
+        ratesDate: '2026-09-26T00:00:00.000Z',
+      });
+      useTransactionsStore.getState().setCurrency('EUR');
+
+      await useTransactionsStore.getState().fetch();
+
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({ currency: 'EUR' })
+      );
+      expect(useTransactionsStore.getState()).toMatchObject({
+        itemsCurrency: 'EUR',
+        ratesDate: '2026-09-26T00:00:00.000Z',
+      });
+    });
+
+    it('keeps the page when the currency changes', () => {
+      useTransactionsStore.getState().setPage(3);
+
+      useTransactionsStore.getState().setCurrency('HUF');
+
+      expect(useTransactionsStore.getState().page).toBe(3);
+    });
+
+    it('keeps the currency across a reset, but not the converted rows', async () => {
+      list.mockResolvedValue(page([makeTransaction('t1')], 1));
+      useTransactionsStore.getState().setCurrency('HUF');
+      await useTransactionsStore.getState().fetch();
+
+      useTransactionsStore.getState().reset();
+
+      expect(useTransactionsStore.getState()).toMatchObject({
+        currency: 'HUF',
+        itemsCurrency: null,
+        ratesDate: null,
+        items: [],
       });
     });
   });

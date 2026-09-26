@@ -6,6 +6,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
+import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
     AuthModule,
     CategoriesModule,
     TransactionsModule,
+    ExchangeRatesModule,
   ],
   controllers: [],
   providers: [],

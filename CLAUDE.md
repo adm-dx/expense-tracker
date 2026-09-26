@@ -170,11 +170,13 @@ The API follows NestJS module structure:
 - `src/app.config.ts`: global `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`) and CORS (`WEB_URL`). Put app-wide setup here, not in `main.ts`, so the integration tests boot with the same rules
 - `src/app.module.ts`: Root module (`ConfigModule`, `CqrsModule.forRoot()`, Prisma, feature modules)
 - `src/prisma/`: Global Prisma module for database access
-- `src/modules/`: `auth`, `users`, `categories`, `transactions`. Each has controller → service → repository (the only layer that touches Prisma), with DTOs in `dto/`
+- `src/modules/`: `auth`, `users`, `categories`, `transactions`, `exchange-rates`. Each has controller → service → repository (the only layer that touches Prisma), with DTOs in `dto/`
 
 **Auth:** `JwtAuthGuard` is registered as a global `APP_GUARD` in `AuthModule`, so every route requires an access token unless marked `@Public()`. Get the caller with `@CurrentUser()`. Refresh tokens are stored hashed in the `RefreshToken` table (`refresh-tokens.repository.ts`).
 
 **Cross-module communication goes through CQRS, not imports of another module's services.** A module that others may call exposes a `contracts/` folder (commands, queries, events and their result types, re-exported from `contracts/index.ts`), and implements them in `handlers/`. Other modules import only from `../<module>/contracts` and dispatch via `CommandBus`/`QueryBus`/`EventBus`. Example: registration in `AuthService` runs `CreateUserCommand` (users) and `CreateDefaultCategoriesCommand` (categories); login publishes `UserLoggedInEvent`, handled in `users`.
+
+**Currencies:** a transaction stores the `amount` and the `currency` (`RSD` | `EUR` | `HUF`) it was entered in; nothing is converted on write. `GET /transactions` and `GET /transactions/summary` take `?currency=` (default `RSD`) and convert on read at **today's** rates: each row gets a `convertedAmount`, and the summary converts its per-currency SQL groups and rounds only the totals. The `exchange-rates` module fetches the rates (ExchangeRate-API open access, `EXCHANGE_RATES_URL`) behind the `ExchangeRatesProvider` DI token, caches them per UTC day, falls back to the last good rates when the provider is down, and answers 503 when it has none. Other modules get them via `GetExchangeRatesQuery` and convert with `convertAmount` from its `contracts`. Rates are requested only when some amount is in another currency than the requested one. Tests replace the provider with `FakeExchangeRatesProvider` (`tests/setup/exchange-rates.ts`) in `createTestApp`, so they never reach the network.
 
 **Prisma conventions:**
 
@@ -204,6 +206,8 @@ The web app uses Next.js 16 App Router as the routing shell, with everything els
 
 **Session-scoped stores:** a store holding data for the signed-in user (`entities/category`, `entities/transaction`) registers its `reset` via `registerStoreReset` (`shared/lib/store-reset.ts`), and `entities/session` calls `resetRegisteredStores()` on sign-in, sign-out and auth failure. This keeps one user's data from leaking into the next session in the same tab without `entities/*` slices importing each other. Any store whose `fetch` can be in flight across a reset must also invalidate its pending request (the `latestRequestId` pattern), or a late response will refill a cleared store.
 
+**Display currency:** `entities/currency` holds the persisted display currency (default RSD, `localStorage` key `display-currency`). It's a device preference, so it is deliberately **not** registered with `registerStoreReset` and survives sign-out. `entities/transaction` can't import it, so `features/currency/select`'s `DisplayCurrencySync` (mounted in `app/(app)/layout.tsx`) pushes it into `useTransactionsStore.currency` after hydration; the summary store reads it from there, like `period`. Both stores skip `fetch()` while `currency` is `null`, so nothing is loaded in RSD before a stored EUR is restored.
+
 **Client-persisted state:** any store that persists to `localStorage` (via Zustand's `persist` middleware) must use `skipHydration: true` + an explicit `hasHydrated` flag flipped in `onRehydrateStorage`, with a dedicated client component calling `store.persist.rehydrate()` once (mounted in root layout). This avoids SSR/localStorage hydration mismatches — see `entities/session` for the reference implementation.
 
 **shadcn/ui setup:** `components.json` aliases point `ui`/`components` at `@/shared/ui` and `utils`/`lib` at `@/shared/lib`, so `npx shadcn@latest add <name>` lands new primitives directly in the FSD `shared` layer. The project is pinned to Tailwind v3 — if a future `shadcn` CLI run offers to upgrade Tailwind to v4 or rewrite `globals.css` to `@import "tailwindcss"` syntax, decline it and add components manually instead.
@@ -221,7 +225,7 @@ Current models in `apps/api/prisma/schema.prisma`:
 - **User**: email (unique), name, `passwordHash`, `isActive`, `lastLoginAt`
 - **RefreshToken**: hashed refresh tokens per user, with expiry and revocation
 - **Category**: per-user (`@@unique([userId, name])`), with color and icon; default categories are seeded on registration
-- **Transaction**: `amount` `Decimal(12,2)`, `type` (`INCOME` | `EXPENSE`), optional description, date; indexed on `(userId, date)`
+- **Transaction**: `amount` `Decimal(12,2)` in `currency` (`RSD` | `EUR` | `HUF`, default `RSD`), `type` (`INCOME` | `EXPENSE`), optional description, date; indexed on `(userId, date)`
   - Deleting a user cascades to everything; deleting a category that still has transactions is blocked (`onDelete: Restrict`)
   - Every query is scoped by `userId` — cross-user access is covered by `tests/integration/api/tenant-isolation.spec.ts`
 
@@ -232,6 +236,7 @@ Current models in `apps/api/prisma/schema.prisma`:
    - `DATABASE_URL`: PostgreSQL connection string (default: local Docker instance)
    - `API_PORT`: Backend port (default: 3001)
    - `NEXT_PUBLIC_API_URL`: Frontend's API endpoint
+   - `EXCHANGE_RATES_URL`: exchange rates API (default `https://open.er-api.com/v6`; no key needed)
 
 ## Important Notes
 

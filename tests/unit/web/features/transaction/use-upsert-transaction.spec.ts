@@ -27,6 +27,7 @@ const api = transactionsApi as jest.Mocked<typeof transactionsApi>;
 const existing: Transaction = {
   id: 'tx-1',
   amount: '12.50',
+  currency: 'RSD',
   type: 'EXPENSE',
   description: 'Lunch',
   date: '2026-09-10T00:00:00.000Z',
@@ -39,6 +40,7 @@ const unchanged: TransactionFormValues = {
   type: 'EXPENSE',
   categoryId: 'cat-1',
   amount: '12.50',
+  currency: 'RSD',
   date: '2026-09-10',
   description: 'Lunch',
 };
@@ -58,7 +60,14 @@ beforeEach(() => {
   jest.clearAllMocks();
   api.create.mockResolvedValue(existing);
   api.update.mockResolvedValue(existing);
-  api.list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 10 });
+  api.list.mockResolvedValue({
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 10,
+    currency: 'RSD',
+    ratesDate: null,
+  });
   api.summary.mockResolvedValue({
     dateFrom: '2026-09-01T00:00:00.000Z',
     dateTo: '2026-09-30T23:59:59.999Z',
@@ -66,8 +75,11 @@ beforeEach(() => {
     totalExpense: '0.00',
     balance: '0.00',
     byCategory: [],
+    currency: 'RSD',
+    ratesDate: null,
   });
   useTransactionsStore.getState().reset();
+  useTransactionsStore.getState().setCurrency('RSD');
   useSummaryStore.getState().reset();
 });
 
@@ -77,6 +89,7 @@ describe('creating', () => {
       type: 'INCOME',
       categoryId: 'cat-9',
       amount: '1000',
+      currency: 'EUR',
       date: '2026-09-16',
       description: 'Salary',
     });
@@ -85,6 +98,7 @@ describe('creating', () => {
       type: 'INCOME',
       categoryId: 'cat-9',
       amount: 1000,
+      currency: 'EUR',
       date: '2026-09-16T00:00:00.000Z',
       description: 'Salary',
     });
@@ -126,6 +140,7 @@ describe('editing', () => {
   it.each([
     ['the type', { type: 'INCOME' as const }, { type: 'INCOME' }],
     ['the category', { categoryId: 'cat-2' }, { categoryId: 'cat-2' }],
+    ['the currency', { currency: 'HUF' as const }, { currency: 'HUF' }],
     ['the date', { date: '2026-09-11' }, { date: '2026-09-11T00:00:00.000Z' }],
     ['the description', { description: 'Dinner' }, { description: 'Dinner' }],
   ])('sends %s on its own', async (_label, change, expected) => {

@@ -1,6 +1,6 @@
 import {
   formatAmount,
-  formatCurrency,
+  formatMoney,
   formatDate,
   getInitials,
   toDateInputValue,
@@ -11,29 +11,31 @@ import {
 
 describe('formatAmount', () => {
   it('prefixes income with a plus sign', () => {
-    expect(formatAmount('12.5', 'INCOME')).toBe('+12.50');
+    expect(formatAmount('12.5', 'INCOME', 'EUR')).toBe('+12.50 EUR');
   });
 
   it('prefixes expenses with a real minus sign', () => {
-    expect(formatAmount('12.5', 'EXPENSE')).toBe('−12.50');
+    expect(formatAmount('12.5', 'EXPENSE', 'RSD')).toBe('−12.50 RSD');
   });
 
   it('groups thousands and rounds to two decimals', () => {
-    expect(formatAmount('1234567.891', 'INCOME')).toBe('+1,234,567.89');
+    expect(formatAmount('1234567.891', 'INCOME', 'HUF')).toBe(
+      '+1,234,567.89 HUF'
+    );
   });
 });
 
-describe('formatCurrency', () => {
+describe('formatMoney', () => {
   it('formats without a sign for positive amounts', () => {
-    expect(formatCurrency('1234.5')).toBe('1,234.50');
+    expect(formatMoney('1234.5', 'RSD')).toBe('1,234.50 RSD');
   });
 
   it('keeps the sign of a negative balance', () => {
-    expect(formatCurrency('-337.50')).toBe('-337.50');
+    expect(formatMoney('-337.50', 'EUR')).toBe('-337.50 EUR');
   });
 
   it('formats zero', () => {
-    expect(formatCurrency('0')).toBe('0.00');
+    expect(formatMoney('0', 'HUF')).toBe('0.00 HUF');
   });
 });
 

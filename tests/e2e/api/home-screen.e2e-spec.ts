@@ -2,12 +2,14 @@ import { INestApplication } from '@nestjs/common';
 import type {
   AuthResponse,
   Category,
-  PaginatedResponse,
+  Currency,
   Transaction,
+  TransactionsPage,
   TransactionSummary,
 } from '@expense-tracker/types';
 import { DEFAULT_CATEGORIES } from '@api/modules/categories/default-categories';
 import { createTestApp, request } from '@tests/setup/app';
+import { TEST_RATES } from '@tests/setup/exchange-rates';
 import { expectJson } from '@tests/setup/http';
 import {
   disconnectDatabase,
@@ -18,7 +20,8 @@ import {
 /**
  * The whole home-screen journey over HTTP, the way the web app drives it:
  * sign up, get default categories, record transactions, page through them,
- * read the summary for a period, edit, delete, sign out and back in.
+ * read the summary for a period, edit, delete, record in other currencies
+ * and view everything in each display currency, sign out and back in.
  *
  * Steps share state and run in order.
  */
@@ -27,6 +30,7 @@ interface Row {
   id: string;
   type: 'INCOME' | 'EXPENSE';
   categoryId: string;
+  /** In RSD, the default display currency, whatever the row was entered in. */
   cents: number;
   date: string;
 }
@@ -65,7 +69,7 @@ const inRange = (row: Row, from: string, to: string) => {
 };
 
 function list(query: string) {
-  return expectJson<PaginatedResponse<Transaction>>(
+  return expectJson<TransactionsPage>(
     server().get(`/transactions${query}`).set(auth())
   );
 }
@@ -118,6 +122,8 @@ describe('home screen journey', () => {
       total: 0,
       page: 1,
       pageSize: 10,
+      currency: 'RSD',
+      ratesDate: null,
     });
     expect(
       await summary(period(SEPTEMBER.dateFrom, SEPTEMBER.dateTo))
@@ -153,6 +159,7 @@ describe('home screen journey', () => {
           .set(auth())
           .send({
             amount: draft.cents / 100,
+            currency: 'RSD',
             type: draft.type,
             date: draft.date,
             categoryId: draft.categoryId,
@@ -377,6 +384,109 @@ describe('home screen journey', () => {
         totalExpense: money(expected.expense),
         balance: money(expected.balance),
       });
+    });
+  });
+
+  describe('other currencies', () => {
+    const CURRENCIES: Currency[] = ['RSD', 'EUR', 'HUF'];
+    /** Units of `currency` per 1 RSD, from the fake provider's rates. */
+    const perRsd = (currency: Currency) =>
+      Number(TEST_RATES[currency]) / Number(TEST_RATES.RSD);
+
+    it('records transactions in euros and forints as entered', async () => {
+      const drafts = [
+        { amount: 12.34, currency: 'EUR', type: 'EXPENSE' },
+        { amount: 555, currency: 'HUF', type: 'INCOME' },
+        { amount: 0.01, currency: 'EUR', type: 'EXPENSE' },
+      ] as const;
+
+      for (const draft of drafts) {
+        const created = await expectJson<Transaction>(
+          server()
+            .post('/transactions')
+            .set(auth())
+            .send({
+              ...draft,
+              date: '2026-09-20T00:00:00.000Z',
+              categoryId: categoryIds[0],
+            }),
+          201
+        );
+        expect(created).toMatchObject({
+          amount: draft.amount.toFixed(2),
+          currency: draft.currency,
+        });
+        rows.push({
+          id: created.id,
+          type: draft.type,
+          categoryId: categoryIds[0]!,
+          cents: Math.round((draft.amount * 100) / perRsd(draft.currency)),
+          date: '2026-09-20T00:00:00.000Z',
+        });
+      }
+    });
+
+    it('in RSD, the cards add up to exactly the rows', async () => {
+      const expected = totals(rows);
+
+      const cards = await summary(
+        `${period(SEPTEMBER.dateFrom, SEPTEMBER.dateTo)}&currency=RSD`
+      );
+
+      expect(cards).toMatchObject({
+        currency: 'RSD',
+        totalIncome: money(expected.income),
+        totalExpense: money(expected.expense),
+        balance: money(expected.balance),
+      });
+    });
+
+    it.each(CURRENCIES)(
+      'in %s, the table and the cards agree and show the same rates',
+      async (currency) => {
+        const query = `${period(SEPTEMBER.dateFrom, SEPTEMBER.dateTo)}&currency=${currency}`;
+        const table = await list(`${query}&pageSize=50`);
+        const cards = await summary(query);
+
+        expect(table.total).toBe(rows.length);
+        expect(table.currency).toBe(currency);
+        expect(cards.currency).toBe(currency);
+        expect(table.ratesDate).toBe(cards.ratesDate);
+
+        // Rows are rounded one by one and the cards only once, so they may
+        // drift apart by at most half a cent per row.
+        const tolerance = table.items.length * 0.005;
+        for (const type of ['INCOME', 'EXPENSE'] as const) {
+          const fromRows = table.items
+            .filter((item) => item.type === type)
+            .reduce((sum, item) => sum + Number(item.convertedAmount), 0);
+          const card = Number(
+            type === 'INCOME' ? cards.totalIncome : cards.totalExpense
+          );
+          expect(Math.abs(fromRows - card)).toBeLessThanOrEqual(tolerance);
+        }
+
+        // The totals themselves follow the rates.
+        const expected = totals(rows);
+        expect(Number(cards.balance)).toBeCloseTo(
+          (expected.balance / 100) * perRsd(currency),
+          2
+        );
+      }
+    );
+
+    it('keeps what was entered, whatever the display currency', async () => {
+      const inHuf = await list(
+        `${period(SEPTEMBER.dateFrom, SEPTEMBER.dateTo)}&currency=HUF&pageSize=50`
+      );
+
+      const euros = inHuf.items.filter((item) => item.currency === 'EUR');
+      expect(euros.map((item) => [item.amount, item.convertedAmount])).toEqual(
+        expect.arrayContaining([
+          ['12.34', '4936.00'],
+          ['0.01', '4.00'],
+        ])
+      );
     });
   });
 
