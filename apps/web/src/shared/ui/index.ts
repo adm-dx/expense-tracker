@@ -67,3 +67,4 @@ export {
   TableHeader,
   TableRow,
 } from './table';
+export { Popover, PopoverContent, PopoverTrigger } from './popover';

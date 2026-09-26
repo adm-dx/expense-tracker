@@ -1,12 +1,13 @@
+import { CATEGORY_ICONS, type CategoryIcon } from '@expense-tracker/types';
 import {
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
 } from 'class-validator';
-import { HEX_COLOR_PATTERN, ICON_KEY_PATTERN } from './create-category.dto';
 
+// Only the name and the icon can be changed.
 export class UpdateCategoryDto {
   @IsOptional()
   @IsString()
@@ -15,15 +16,6 @@ export class UpdateCategoryDto {
   name?: string;
 
   @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_PATTERN, {
-    message: 'color must be a hex color like #A1B2C3',
-  })
-  color?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  @Matches(ICON_KEY_PATTERN, { message: 'icon must be a kebab-case icon key' })
-  icon?: string;
+  @IsIn(CATEGORY_ICONS, { message: 'icon must be one of the category icons' })
+  icon?: CategoryIcon;
 }

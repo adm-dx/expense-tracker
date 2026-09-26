@@ -5,7 +5,11 @@ import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { DeleteTransactionDialog } from '@/features/transaction/delete';
 import { TransactionDialog } from '@/features/transaction/upsert';
-import { useCategoriesStore, useCategoryMap } from '@/entities/category';
+import {
+  CategoryIcon,
+  useCategoriesStore,
+  useCategoryMap,
+} from '@/entities/category';
 import { useTransactionsStore } from '@/entities/transaction';
 import { cn } from '@/shared/lib/utils';
 import { formatAmount, formatDate, formatMoney } from '@/shared/lib/format';
@@ -133,14 +137,12 @@ export function TransactionsTable() {
                   </TableCell>
                   <TableCell>
                     <span className="flex items-center gap-2">
-                      <span
-                        className="size-2.5 shrink-0 rounded-full bg-muted"
-                        style={
-                          category
-                            ? { backgroundColor: category.color }
-                            : undefined
-                        }
-                      />
+                      {category && (
+                        <CategoryIcon
+                          icon={category.icon}
+                          className="text-muted-foreground"
+                        />
+                      )}
                       {category?.name ?? '—'}
                     </span>
                   </TableCell>

@@ -1,7 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import type { Category } from '@expense-tracker/types';
 import { CategoriesRepository } from '@api/modules/categories/categories.repository';
-import { DEFAULT_CATEGORIES } from '@api/modules/categories/default-categories';
+import {
+  CATEGORY_COLORS,
+  DEFAULT_CATEGORIES,
+} from '@api/modules/categories/default-categories';
 import {
   bearer,
   createTestApp,
@@ -94,7 +97,7 @@ describe('default categories', () => {
       await server()
         .patch(`/categories/${food?.id}`)
         .set(...as(user))
-        .send({ color: '#000000' });
+        .send({ icon: 'pizza' });
       await prisma.category.deleteMany({
         where: { userId: user.id, name: 'Other' },
       });
@@ -103,7 +106,7 @@ describe('default categories', () => {
 
       const after = await listCategories(user);
       expect(after).toHaveLength(DEFAULT_CATEGORIES.length);
-      expect(after.find((c) => c.name === 'Food')?.color).toBe('#000000');
+      expect(after.find((c) => c.name === 'Food')?.icon).toBe('pizza');
       expect(after.some((c) => c.name === 'Other')).toBe(true);
     });
   });
@@ -124,6 +127,20 @@ describe('POST /categories', () => {
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({ name: 'Pets', color: '#A1B2C3' });
     expect(response.body).not.toHaveProperty('userId');
+  });
+
+  it('picks a palette color when none is given, and starts with no transactions', async () => {
+    const response = await create(user, { name: 'Pets', icon: 'paw-print' });
+
+    expect(response.status).toBe(201);
+    // The user already has the default categories, so the palette has moved on.
+    expect(response.body).toMatchObject({
+      name: 'Pets',
+      icon: 'paw-print',
+      color:
+        CATEGORY_COLORS[DEFAULT_CATEGORIES.length % CATEGORY_COLORS.length],
+      transactionCount: 0,
+    });
   });
 
   it('trims the name', async () => {
@@ -162,7 +179,8 @@ describe('POST /categories', () => {
     ['a non-hex color', { color: '#GGGGGG' }],
     ['a color without #', { color: 'a1b2c3' }],
     ['a short color', { color: '#abc' }],
-    ['a non-kebab icon', { icon: 'Paw Print' }],
+    ['an icon outside the list', { icon: 'rocket' }],
+    ['a missing icon', { icon: undefined }],
     ['an empty name', { name: '' }],
     ['a name over 50 characters', { name: 'a'.repeat(51) }],
     ['an unknown field', { userId: 'someone-else' }],
@@ -180,6 +198,19 @@ describe('GET /categories', () => {
 
   it('returns nothing for a search that matches nothing', async () => {
     expect(await listCategories(user, '?search=zzz')).toEqual([]);
+  });
+
+  it('counts the transactions of each category', async () => {
+    const food = (await listCategories(user)).find((c) => c.name === 'Food');
+    await seedTransaction({ userId: user.id, categoryId: food?.id as string });
+    await seedTransaction({ userId: user.id, categoryId: food?.id as string });
+
+    const categories = await listCategories(user);
+
+    expect(categories.find((c) => c.name === 'Food')?.transactionCount).toBe(2);
+    expect(categories.find((c) => c.name === 'Health')?.transactionCount).toBe(
+      0
+    );
   });
 
   it('rejects a search term over 50 characters', async () => {
@@ -211,10 +242,42 @@ describe('PATCH /categories/:id', () => {
     const response = await server()
       .patch(`/categories/${food?.id}`)
       .set(...as(user))
-      .send({ name: 'Food', color: '#123456' });
+      .send({ name: 'Food', icon: 'pizza' });
 
     expect(response.status).toBe(200);
-    expect(response.body.color).toBe('#123456');
+    expect(response.body).toMatchObject({ name: 'Food', icon: 'pizza' });
+  });
+
+  it('renames a category and keeps its color', async () => {
+    const food = (await listCategories(user)).find((c) => c.name === 'Food');
+
+    const updated = await expectJson<Category>(
+      server()
+        .patch(`/categories/${food?.id}`)
+        .set(...as(user))
+        .send({ name: 'Groceries' })
+    );
+
+    expect(updated).toMatchObject({
+      name: 'Groceries',
+      icon: food?.icon,
+      color: food?.color,
+    });
+  });
+
+  it.each([
+    ['a color change', { color: '#123456' }],
+    ['an icon outside the list', { icon: 'rocket' }],
+    ['an empty name', { name: '' }],
+  ])('rejects %s', async (_label, body) => {
+    const food = (await listCategories(user)).find((c) => c.name === 'Food');
+
+    const response = await server()
+      .patch(`/categories/${food?.id}`)
+      .set(...as(user))
+      .send(body);
+
+    expect(response.status).toBe(400);
   });
 });
 
@@ -266,5 +329,81 @@ describe('DELETE /categories/:id', () => {
       .set(...as(user));
 
     expect(response.status).toBe(204);
+  });
+
+  describe('with reassignTo', () => {
+    async function idOf(u: TestUser, name: string) {
+      return (await listCategories(u)).find((c) => c.name === name)
+        ?.id as string;
+    }
+
+    it('moves the transactions to the other category, then deletes it', async () => {
+      const food = await idOf(user, 'Food');
+      const other = await idOf(user, 'Other');
+      const first = await seedTransaction({
+        userId: user.id,
+        categoryId: food,
+      });
+      const second = await seedTransaction({
+        userId: user.id,
+        categoryId: food,
+      });
+
+      const response = await server()
+        .delete(`/categories/${food}?reassignTo=${other}`)
+        .set(...as(user));
+
+      expect(response.status).toBe(204);
+      expect(
+        await prisma.category.findUnique({ where: { id: food } })
+      ).toBeNull();
+      const moved = await prisma.transaction.findMany({
+        where: { id: { in: [first.id, second.id] } },
+      });
+      expect(moved.map((t) => t.categoryId)).toEqual([other, other]);
+      expect(
+        (await listCategories(user)).find((c) => c.id === other)
+          ?.transactionCount
+      ).toBe(2);
+    });
+
+    it('also deletes a category without transactions', async () => {
+      const food = await idOf(user, 'Food');
+      const other = await idOf(user, 'Other');
+
+      const response = await server()
+        .delete(`/categories/${food}?reassignTo=${other}`)
+        .set(...as(user));
+
+      expect(response.status).toBe(204);
+    });
+
+    it('answers 400 for moving into the category itself', async () => {
+      const food = await idOf(user, 'Food');
+
+      const response = await server()
+        .delete(`/categories/${food}?reassignTo=${food}`)
+        .set(...as(user));
+
+      expect(response.status).toBe(400);
+    });
+
+    it('answers 404 for a missing target and changes nothing', async () => {
+      const food = await idOf(user, 'Food');
+      const transaction = await seedTransaction({
+        userId: user.id,
+        categoryId: food,
+      });
+
+      const response = await server()
+        .delete(`/categories/${food}?reassignTo=missing`)
+        .set(...as(user));
+
+      expect(response.status).toBe(404);
+      expect(
+        (await prisma.transaction.findUnique({ where: { id: transaction.id } }))
+          ?.categoryId
+      ).toBe(food);
+    });
   });
 });

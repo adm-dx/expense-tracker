@@ -1,14 +1,15 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Category, Prisma } from '../../generated/prisma/client';
-import { PublicCategory } from './types';
+import { Prisma } from '../../generated/prisma/client';
+import { CategoryWithCount, PublicCategory } from './types';
 import { CategoriesRepository } from './categories.repository';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-import { DEFAULT_CATEGORIES } from './default-categories';
+import { CATEGORY_COLORS, DEFAULT_CATEGORIES } from './default-categories';
 
 const UNIQUE_CONSTRAINT_VIOLATION = 'P2002';
 const FOREIGN_KEY_VIOLATION = 'P2003';
@@ -34,11 +35,14 @@ export class CategoriesService {
     userId: string,
     dto: CreateCategoryDto
   ): Promise<PublicCategory> {
+    const color = dto.color
+      ? dto.color.toUpperCase()
+      : await this.nextColor(userId);
     return this.withConflictHandling(async () => {
       const category = await this.categoriesRepository.create({
         userId,
         name: dto.name.trim(),
-        color: dto.color.toUpperCase(),
+        color,
         icon: dto.icon,
       });
       return this.toPublic(category);
@@ -60,7 +64,6 @@ export class CategoriesService {
 
     const data: Prisma.CategoryUpdateInput = {};
     if (dto.name !== undefined) data.name = dto.name.trim();
-    if (dto.color !== undefined) data.color = dto.color.toUpperCase();
     if (dto.icon !== undefined) data.icon = dto.icon;
 
     return this.withConflictHandling(async () => {
@@ -69,10 +72,30 @@ export class CategoriesService {
     });
   }
 
-  async remove(userId: string, id: string): Promise<void> {
+  /**
+   * Deletes a category. With `reassignTo`, its transactions move to that
+   * category first; without it, a category that has transactions is kept (409).
+   */
+  async remove(userId: string, id: string, reassignTo?: string): Promise<void> {
     await this.findOwned(userId, id);
+    if (reassignTo !== undefined) {
+      if (reassignTo === id) {
+        throw new BadRequestException(
+          'Transactions cannot be moved to the category being deleted'
+        );
+      }
+      await this.findOwned(userId, reassignTo);
+    }
     try {
-      await this.categoriesRepository.delete(id);
+      if (reassignTo === undefined) {
+        await this.categoriesRepository.delete(id);
+      } else {
+        await this.categoriesRepository.reassignAndDelete(
+          id,
+          reassignTo,
+          userId
+        );
+      }
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -86,18 +109,27 @@ export class CategoriesService {
     }
   }
 
-  toPublic(category: Category): PublicCategory {
+  toPublic(category: CategoryWithCount): PublicCategory {
     return {
       id: category.id,
       name: category.name,
       color: category.color,
       icon: category.icon,
+      transactionCount: category._count.transactions,
       createdAt: category.createdAt,
       updatedAt: category.updatedAt,
     };
   }
 
-  private async findOwned(userId: string, id: string): Promise<Category> {
+  private async nextColor(userId: string): Promise<string> {
+    const count = await this.categoriesRepository.countByUser(userId);
+    return CATEGORY_COLORS[count % CATEGORY_COLORS.length] ?? '#64748B';
+  }
+
+  private async findOwned(
+    userId: string,
+    id: string
+  ): Promise<CategoryWithCount> {
     const category = await this.categoriesRepository.findByIdForUser(
       id,
       userId

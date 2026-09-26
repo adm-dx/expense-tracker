@@ -16,22 +16,89 @@ export interface PaginatedResponse<T> {
   pageSize: number;
 }
 
+// lucide icon names (kebab-case), grouped by meaning. The API accepts only these,
+// and the web maps each one to its lucide component.
+export const CATEGORY_ICONS = [
+  // Food
+  'utensils',
+  'coffee',
+  'pizza',
+  'shopping-cart',
+  'apple',
+  // Transport
+  'car',
+  'bus',
+  'train-front',
+  'fuel',
+  'plane',
+  // Home and bills
+  'house',
+  'lightbulb',
+  'wifi',
+  'smartphone',
+  'receipt',
+  // Health
+  'heart-pulse',
+  'pill',
+  'stethoscope',
+  // Leisure
+  'clapperboard',
+  'gamepad-2',
+  'music',
+  'tv',
+  // Shopping
+  'shopping-bag',
+  'shirt',
+  'gift',
+  'scissors',
+  // Money
+  'banknote',
+  'wallet',
+  'piggy-bank',
+  'credit-card',
+  'trending-up',
+  'hand-coins',
+  'landmark',
+  'briefcase',
+  // Other
+  'graduation-cap',
+  'book-open',
+  'baby',
+  'paw-print',
+  'dumbbell',
+  'wrench',
+  'circle-ellipsis',
+] as const;
+
+export type CategoryIcon = (typeof CATEGORY_ICONS)[number];
+
 export interface Category {
   id: string;
   name: string;
   color: string;
-  icon: string;
+  icon: CategoryIcon;
+  /** How many transactions use this category. */
+  transactionCount: number;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateCategoryRequest {
   name: string;
-  color: string;
-  icon: string;
+  icon: CategoryIcon;
+  /** Assigned by the server when omitted. */
+  color?: string;
 }
 
-export type UpdateCategoryRequest = Partial<CreateCategoryRequest>;
+export interface UpdateCategoryRequest {
+  name?: string;
+  icon?: CategoryIcon;
+}
+
+export interface DeleteCategoryOptions {
+  /** Move the category's transactions here before deleting it. */
+  reassignTo?: string;
+}
 
 export type TransactionType = 'INCOME' | 'EXPENSE';
 
