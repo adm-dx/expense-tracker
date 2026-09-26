@@ -1,9 +1,16 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { CommandBus, EventBus, QueryBus } from '@nestjs/cqrs';
 import * as bcrypt from 'bcryptjs';
 import {
+  ChangeUserPasswordCommand,
   CreateUserCommand,
   GetUserByIdQuery,
+  GetUserCredentialsByIdQuery,
   GetUserCredentialsQuery,
   PublicUser,
   UserCredentials,
@@ -13,6 +20,7 @@ import { UserLoggedInEvent } from './contracts';
 import { TokenService, AuthTokens } from './token.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 const BCRYPT_SALT_ROUNDS = 10;
 
@@ -85,6 +93,53 @@ export class AuthService {
 
   logout(refreshToken: string): Promise<void> {
     return this.tokenService.revoke(refreshToken);
+  }
+
+  /**
+   * Checks the current password, stores the new one and signs the user out
+   * of every session. The caller's session continues with the returned
+   * tokens; other devices keep only their access token, until it expires.
+   */
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<AuthTokens> {
+    const credentials = await this.queryBus.execute<
+      GetUserCredentialsByIdQuery,
+      UserCredentials | null
+    >(new GetUserCredentialsByIdQuery(userId));
+    if (!credentials || !credentials.isActive) {
+      throw new UnauthorizedException();
+    }
+
+    // 400, not 401: the client treats a 401 as an expired session.
+    const currentMatches = await bcrypt.compare(
+      dto.currentPassword,
+      credentials.passwordHash,
+    );
+    if (!currentMatches) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+    if (dto.newPassword === dto.currentPassword) {
+      throw new BadRequestException(
+        'New password must differ from the current one',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_SALT_ROUNDS);
+    await this.commandBus.execute<ChangeUserPasswordCommand, void>(
+      new ChangeUserPasswordCommand(userId, passwordHash),
+    );
+    await this.tokenService.revokeAll(userId);
+
+    const user = await this.queryBus.execute<
+      GetUserByIdQuery,
+      PublicUser | null
+    >(new GetUserByIdQuery(userId));
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    return this.tokenService.issueTokens(user);
   }
 
   me(userId: string): Promise<PublicUser | null> {

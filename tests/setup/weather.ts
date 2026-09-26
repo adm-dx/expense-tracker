@@ -1,3 +1,4 @@
+import type { Place } from '@expense-tracker/types';
 import type { WeatherReading } from '@api/modules/weather/contracts';
 import { GeocodingProvider } from '@api/modules/weather/providers/geocoding.provider';
 import { WeatherProvider } from '@api/modules/weather/providers/weather.provider';
@@ -30,9 +31,15 @@ export class FakeWeatherProvider extends WeatherProvider {
   }
 }
 
+export const TEST_PLACES: Place[] = [
+  { name: 'Belgrade, RS', lat: 44.8178, lon: 20.4569 },
+  { name: 'Belgrade, US', lat: 45.7761, lon: -111.1766 },
+];
+
 export class FakeGeocodingProvider extends GeocodingProvider {
   failing = false;
   calls: Array<[number, number]> = [];
+  searches: string[] = [];
 
   reverse(lat: number, lon: number): Promise<string | null> {
     this.calls.push([lat, lon]);
@@ -40,5 +47,14 @@ export class FakeGeocodingProvider extends GeocodingProvider {
       return Promise.reject(new Error('Simulated geocoding outage'));
     }
     return Promise.resolve(TEST_LOCATION);
+  }
+
+  /** Knows only "belgrade"; anything else finds nothing. */
+  search(query: string): Promise<Place[]> {
+    this.searches.push(query);
+    if (this.failing) {
+      return Promise.reject(new Error('Simulated geocoding outage'));
+    }
+    return Promise.resolve(query === 'belgrade' ? TEST_PLACES : []);
   }
 }

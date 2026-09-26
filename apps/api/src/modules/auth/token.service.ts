@@ -110,6 +110,11 @@ export class TokenService {
     await this.refreshTokensRepository.revoke(record.id);
   }
 
+  /** Signs the user out everywhere: no refresh token of theirs works any more. */
+  async revokeAll(userId: string): Promise<void> {
+    await this.refreshTokensRepository.revokeAllForUser(userId);
+  }
+
   private signAccessToken(userId: string, email: string): Promise<string> {
     return this.jwtService.signAsync(
       { sub: userId, email },
