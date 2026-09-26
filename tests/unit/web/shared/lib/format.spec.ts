@@ -2,6 +2,8 @@ import {
   formatAmount,
   formatMoney,
   formatDate,
+  formatTemperature,
+  formatTime,
   getInitials,
   toDateInputValue,
   toIsoDate,
@@ -100,5 +102,25 @@ describe('getInitials', () => {
 
   it('ignores extra whitespace', () => {
     expect(getInitials('  ada   lovelace ')).toBe('AL');
+  });
+});
+
+describe('formatTemperature', () => {
+  it.each([
+    [18.4, '18°C'],
+    [18.5, '19°C'],
+    [0, '0°C'],
+    [-0.3, '0°C'],
+    [-3.6, '−4°C'],
+  ])('%p → %p', (celsius, expected) => {
+    expect(formatTemperature(celsius)).toBe(expected);
+  });
+});
+
+describe('formatTime', () => {
+  it('shows hours and minutes', () => {
+    expect(formatTime('2026-09-26T12:05:00.000Z')).toMatch(
+      /^\d{1,2}:05 (AM|PM)$/
+    );
   });
 });

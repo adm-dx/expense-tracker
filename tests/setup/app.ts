@@ -6,18 +6,31 @@ import { sign, type SignOptions } from 'jsonwebtoken';
 import { AppModule } from '@api/app.module';
 import { configureApp } from '@api/app.config';
 import { ExchangeRatesProvider } from '@api/modules/exchange-rates/providers/exchange-rates.provider';
+import { GeocodingProvider } from '@api/modules/weather/providers/geocoding.provider';
+import { WeatherProvider } from '@api/modules/weather/providers/weather.provider';
 import { assertTestDatabase } from './env';
 import { FakeExchangeRatesProvider } from './exchange-rates';
 import { expectJson } from './http';
+import { FakeGeocodingProvider, FakeWeatherProvider } from './weather';
+
+/** Fakes for the weather module's outside services, see `createTestApp`. */
+export interface WeatherFakes {
+  weatherProvider?: WeatherProvider;
+  geocodingProvider?: GeocodingProvider;
+}
 
 /**
  * Boots the real application (guards, pipes, controllers, repositories) with
- * the same global configuration as `main.ts`. The only stand-in is the
- * exchange rates provider, so tests never reach the network; pass your own
- * fake to control it.
+ * the same global configuration as `main.ts`. The only stand-ins are the
+ * providers of exchange rates, weather and place names, so tests never reach
+ * the network; pass your own fakes to control them.
  */
 export async function createTestApp(
-  ratesProvider: ExchangeRatesProvider = new FakeExchangeRatesProvider()
+  ratesProvider: ExchangeRatesProvider = new FakeExchangeRatesProvider(),
+  {
+    weatherProvider = new FakeWeatherProvider(),
+    geocodingProvider = new FakeGeocodingProvider(),
+  }: WeatherFakes = {}
 ): Promise<INestApplication> {
   // Last line of defence: the app's own Prisma client reads DATABASE_URL.
   assertTestDatabase(process.env.DATABASE_URL ?? '');
@@ -27,6 +40,10 @@ export async function createTestApp(
   })
     .overrideProvider(ExchangeRatesProvider)
     .useValue(ratesProvider)
+    .overrideProvider(WeatherProvider)
+    .useValue(weatherProvider)
+    .overrideProvider(GeocodingProvider)
+    .useValue(geocodingProvider)
     .compile();
   const app = moduleRef.createNestApplication();
   configureApp(app);
