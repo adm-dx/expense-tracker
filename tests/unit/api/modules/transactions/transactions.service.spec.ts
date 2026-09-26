@@ -1,5 +1,15 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Prisma, TransactionType } from '@api/generated/prisma/client';
+import { ServiceUnavailableException } from '@nestjs/common';
+import { QueryBus } from '@nestjs/cqrs';
+import {
+  Currency,
+  Prisma,
+  TransactionType,
+} from '@api/generated/prisma/client';
+import {
+  ExchangeRatesSnapshot,
+  GetExchangeRatesQuery,
+} from '@api/modules/exchange-rates/contracts';
 import { TransactionsService } from '@api/modules/transactions/transactions.service';
 import { TransactionsRepository } from '@api/modules/transactions/transactions.repository';
 
@@ -8,6 +18,7 @@ function makeTransaction(overrides: Partial<Record<string, unknown>> = {}) {
     id: 'tx-1',
     userId: 'user-1',
     amount: new Prisma.Decimal('12.50'),
+    currency: Currency.RSD,
     type: TransactionType.EXPENSE,
     description: 'Lunch',
     date: new Date('2026-09-10T00:00:00.000Z'),
@@ -30,8 +41,20 @@ function makeCategory(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+// 1 EUR = 117.5 RSD = 400 HUF.
+const RATES: ExchangeRatesSnapshot = {
+  base: Currency.EUR,
+  date: new Date('2026-09-26T00:00:00.000Z'),
+  rates: new Map([
+    [Currency.EUR, new Prisma.Decimal('1')],
+    [Currency.RSD, new Prisma.Decimal('117.5')],
+    [Currency.HUF, new Prisma.Decimal('400')],
+  ]),
+};
+
 describe('TransactionsService', () => {
   let repository: jest.Mocked<TransactionsRepository>;
+  let queryBus: { execute: jest.Mock };
   let service: TransactionsService;
 
   beforeEach(() => {
@@ -45,7 +68,11 @@ describe('TransactionsService', () => {
       delete: jest.fn(),
       sumByTypeAndCategory: jest.fn(),
     } as unknown as jest.Mocked<TransactionsRepository>;
-    service = new TransactionsService(repository);
+    queryBus = { execute: jest.fn().mockResolvedValue(RATES) };
+    service = new TransactionsService(
+      repository,
+      queryBus as unknown as QueryBus
+    );
   });
 
   describe('list', () => {
@@ -82,7 +109,14 @@ describe('TransactionsService', () => {
 
       const result = await service.list('user-1', {});
 
-      expect(result).toEqual({ items: [], total: 0, page: 1, pageSize: 10 });
+      expect(result).toEqual({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        currency: Currency.RSD,
+        ratesDate: null,
+      });
     });
 
     it('translates page and pageSize into skip and take', async () => {
@@ -127,6 +161,7 @@ describe('TransactionsService', () => {
       await expect(
         service.create('user-2', {
           amount: 10,
+          currency: Currency.RSD,
           type: TransactionType.EXPENSE,
           date: '2026-09-10',
           categoryId: 'cat-1',
@@ -141,6 +176,7 @@ describe('TransactionsService', () => {
 
       await service.create('user-1', {
         amount: 12.5,
+        currency: Currency.EUR,
         type: TransactionType.EXPENSE,
         description: '  Lunch ',
         date: '2026-09-10',
@@ -150,6 +186,7 @@ describe('TransactionsService', () => {
       expect(repository.create).toHaveBeenCalledWith({
         userId: 'user-1',
         amount: new Prisma.Decimal('12.50'),
+        currency: Currency.EUR,
         type: TransactionType.EXPENSE,
         description: 'Lunch',
         date: new Date('2026-09-10'),
@@ -163,6 +200,7 @@ describe('TransactionsService', () => {
 
       await service.create('user-1', {
         amount: 1,
+        currency: Currency.RSD,
         type: TransactionType.INCOME,
         description: '   ',
         date: '2026-09-10',
@@ -186,6 +224,7 @@ describe('TransactionsService', () => {
       await expect(
         service.create('user-1', {
           amount: 1,
+          currency: Currency.RSD,
           type: TransactionType.INCOME,
           date: '2026-09-10',
           categoryId: 'cat-1',
@@ -357,7 +396,10 @@ describe('TransactionsService', () => {
         totalExpense: '0.00',
         balance: '0.00',
         byCategory: [],
+        currency: Currency.RSD,
+        ratesDate: null,
       });
+      expect(queryBus.execute).not.toHaveBeenCalled();
     });
 
     it('sums totals without float errors and sorts categories by total', async () => {
@@ -365,16 +407,19 @@ describe('TransactionsService', () => {
         {
           type: TransactionType.EXPENSE,
           categoryId: 'cat-1',
+          currency: Currency.RSD,
           amount: new Prisma.Decimal('0.10'),
         },
         {
           type: TransactionType.EXPENSE,
           categoryId: 'cat-2',
+          currency: Currency.RSD,
           amount: new Prisma.Decimal('0.20'),
         },
         {
           type: TransactionType.INCOME,
           categoryId: 'cat-3',
+          currency: Currency.RSD,
           amount: new Prisma.Decimal('1000.00'),
         },
       ]);
@@ -402,6 +447,174 @@ describe('TransactionsService', () => {
         type: TransactionType.INCOME,
         total: '1000.00',
       });
+    });
+  });
+
+  describe('currency conversion', () => {
+    it('lists a single-currency page without asking for rates', async () => {
+      repository.findManyByUser.mockResolvedValue({
+        items: [makeTransaction({ currency: Currency.EUR })],
+        total: 1,
+      } as never);
+
+      const result = await service.list('user-1', { currency: Currency.EUR });
+
+      expect(queryBus.execute).not.toHaveBeenCalled();
+      expect(result.items[0]?.convertedAmount).toBe('12.50');
+      expect(result).toMatchObject({ currency: Currency.EUR, ratesDate: null });
+    });
+
+    it('converts every row of a mixed page and keeps the original amount', async () => {
+      repository.findManyByUser.mockResolvedValue({
+        items: [
+          makeTransaction({
+            id: 'tx-eur',
+            amount: new Prisma.Decimal('10.00'),
+            currency: Currency.EUR,
+          }),
+          makeTransaction({
+            id: 'tx-huf',
+            amount: new Prisma.Decimal('1000.00'),
+            currency: Currency.HUF,
+          }),
+          makeTransaction({
+            id: 'tx-rsd',
+            amount: new Prisma.Decimal('50.00'),
+            currency: Currency.RSD,
+          }),
+        ],
+        total: 3,
+      } as never);
+
+      const result = await service.list('user-1', {});
+
+      expect(queryBus.execute).toHaveBeenCalledWith(
+        expect.any(GetExchangeRatesQuery)
+      );
+      expect(
+        result.items.map((item) => [
+          item.amount,
+          item.currency,
+          item.convertedAmount,
+        ])
+      ).toEqual([
+        ['10.00', Currency.EUR, '1175.00'],
+        // 1000 HUF = 2.5 EUR = 293.75 RSD, a cross rate through EUR.
+        ['1000.00', Currency.HUF, '293.75'],
+        ['50.00', Currency.RSD, '50.00'],
+      ]);
+      expect(result).toMatchObject({
+        currency: Currency.RSD,
+        ratesDate: RATES.date,
+      });
+    });
+
+    it('propagates an outage only when a conversion is needed', async () => {
+      queryBus.execute.mockRejectedValue(new ServiceUnavailableException());
+      repository.findManyByUser.mockResolvedValue({
+        items: [makeTransaction({ currency: Currency.EUR })],
+        total: 1,
+      } as never);
+
+      await expect(
+        service.list('user-1', { currency: Currency.RSD })
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      await expect(
+        service.list('user-1', { currency: Currency.EUR })
+      ).resolves.toMatchObject({ total: 1 });
+    });
+
+    it('updates the currency without touching the amount', async () => {
+      repository.findByIdForUser.mockResolvedValue(makeTransaction() as never);
+      repository.update.mockResolvedValue(
+        makeTransaction({ currency: Currency.HUF }) as never
+      );
+
+      const result = await service.update('user-1', 'tx-1', {
+        currency: Currency.HUF,
+      });
+
+      expect(repository.update).toHaveBeenCalledWith('tx-1', {
+        currency: Currency.HUF,
+      });
+      expect(result.currency).toBe(Currency.HUF);
+    });
+
+    it('converts summary groups and merges a category across currencies', async () => {
+      repository.sumByTypeAndCategory.mockResolvedValue([
+        {
+          type: TransactionType.EXPENSE,
+          categoryId: 'cat-1',
+          currency: Currency.RSD,
+          amount: new Prisma.Decimal('0.01'),
+        },
+        {
+          type: TransactionType.EXPENSE,
+          categoryId: 'cat-1',
+          currency: Currency.HUF,
+          amount: new Prisma.Decimal('0.01'),
+        },
+        {
+          type: TransactionType.EXPENSE,
+          categoryId: 'cat-2',
+          currency: Currency.HUF,
+          amount: new Prisma.Decimal('0.01'),
+        },
+        {
+          type: TransactionType.INCOME,
+          categoryId: 'cat-3',
+          currency: Currency.RSD,
+          amount: new Prisma.Decimal('2350.00'),
+        },
+      ]);
+      repository.findCategoriesByIds.mockResolvedValue([
+        makeCategory(),
+        makeCategory({ id: 'cat-2', name: 'Transport' }),
+        makeCategory({ id: 'cat-3', name: 'Salary' }),
+      ] as never);
+
+      const result = await service.summary('user-1', {
+        month: 9,
+        year: 2026,
+        currency: Currency.EUR,
+      });
+
+      expect(result.currency).toBe(Currency.EUR);
+      expect(result.ratesDate).toEqual(RATES.date);
+      expect(result.totalIncome).toBe('20.00');
+      expect(
+        result.byCategory.map((item) => [item.categoryId, item.type])
+      ).toEqual([
+        ['cat-3', TransactionType.INCOME],
+        ['cat-1', TransactionType.EXPENSE],
+        ['cat-2', TransactionType.EXPENSE],
+      ]);
+    });
+
+    it('sums converted amounts before rounding', async () => {
+      repository.sumByTypeAndCategory.mockResolvedValue(
+        ['cat-1', 'cat-2', 'cat-3'].map((categoryId) => ({
+          type: TransactionType.EXPENSE,
+          categoryId,
+          currency: Currency.RSD,
+          amount: new Prisma.Decimal('0.60'),
+        }))
+      );
+      repository.findCategoriesByIds.mockResolvedValue([] as never);
+
+      const result = await service.summary('user-1', {
+        month: 9,
+        year: 2026,
+        currency: Currency.EUR,
+      });
+
+      // 1.80 / 117.5 = 0.0153… → 0.02, while each row alone rounds to 0.01.
+      expect(result.totalExpense).toBe('0.02');
+      expect(result.byCategory.map((item) => item.total)).toEqual([
+        '0.01',
+        '0.01',
+        '0.01',
+      ]);
     });
   });
 });

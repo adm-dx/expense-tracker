@@ -1,4 +1,8 @@
-import { Prisma, TransactionType } from '@api/generated/prisma/client';
+import {
+  Currency,
+  Prisma,
+  TransactionType,
+} from '@api/generated/prisma/client';
 import { prisma } from './prisma';
 
 let counter = 0;
@@ -24,6 +28,7 @@ export function seedTransaction(input: {
   userId: string;
   categoryId: string;
   amount?: string;
+  currency?: Currency;
   type?: TransactionType;
   date?: string;
   createdAt?: string;
@@ -34,6 +39,7 @@ export function seedTransaction(input: {
       userId: input.userId,
       categoryId: input.categoryId,
       amount: new Prisma.Decimal(input.amount ?? '10.00'),
+      currency: input.currency ?? Currency.RSD,
       type: input.type ?? TransactionType.EXPENSE,
       date: new Date(input.date ?? '2026-09-10T00:00:00.000Z'),
       ...(input.createdAt ? { createdAt: new Date(input.createdAt) } : {}),

@@ -1,5 +1,9 @@
 import { INestApplication } from '@nestjs/common';
-import { Prisma, TransactionType } from '@api/generated/prisma/client';
+import {
+  Currency,
+  Prisma,
+  TransactionType,
+} from '@api/generated/prisma/client';
 import { TransactionsRepository } from '@api/modules/transactions/transactions.repository';
 import type { TransactionFilters } from '@api/modules/transactions/transactions.repository';
 import { createTestApp } from '@tests/setup/app';
@@ -313,6 +317,29 @@ describe('sumByTypeAndCategory', () => {
     expect(rows.find((r) => r.categoryId === other.id)?.amount.toFixed(2)).toBe(
       '3.00'
     );
+  });
+
+  it('keeps each currency in its own row', async () => {
+    const { user, category } = await seedSeptember();
+    await seedTransaction({
+      userId: user.id,
+      categoryId: category.id,
+      amount: '7.00',
+      currency: Currency.EUR,
+      date: '2026-09-15T00:00:00.000Z',
+    });
+
+    const rows = await repository.sumByTypeAndCategory(user.id, SEPTEMBER);
+
+    const expenses = rows.filter((r) => r.type === TransactionType.EXPENSE);
+    expect(
+      expenses
+        .map((r) => [r.currency, r.amount.toFixed(2)])
+        .sort(([a], [b]) => String(a).localeCompare(String(b)))
+    ).toEqual([
+      [Currency.EUR, '7.00'],
+      [Currency.RSD, '5.30'],
+    ]);
   });
 
   it('is empty when nothing matches', async () => {

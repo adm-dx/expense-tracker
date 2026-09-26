@@ -7,6 +7,7 @@ const valid: TransactionFormValues = {
   type: 'EXPENSE',
   categoryId: 'cat-1',
   amount: '12.50',
+  currency: 'RSD',
   date: '2026-09-16',
   description: 'Lunch',
 };
@@ -51,6 +52,20 @@ describe('transactionSchema', () => {
       expect(messagesFor({ amount: '10000000000' })).toContain(
         'Amount is too large'
       );
+    });
+  });
+
+  describe('currency', () => {
+    it.each(['RSD', 'EUR', 'HUF'])('accepts %s', (currency) => {
+      expect(transactionSchema.safeParse({ ...valid, currency }).success).toBe(
+        true
+      );
+    });
+
+    it('rejects an unsupported currency', () => {
+      expect(
+        transactionSchema.safeParse({ ...valid, currency: 'USD' }).success
+      ).toBe(false);
     });
   });
 

@@ -1,8 +1,8 @@
 import { INestApplication } from '@nestjs/common';
 import type {
   Category,
-  PaginatedResponse,
   Transaction,
+  TransactionsPage,
   TransactionSummary,
 } from '@expense-tracker/types';
 import {
@@ -58,6 +58,7 @@ function expectRule(response: { status: number; body: unknown }, rule: string) {
 
 const validBody = () => ({
   amount: 12.5,
+  currency: 'RSD',
   type: 'EXPENSE',
   date: '2026-09-10T00:00:00.000Z',
   categoryId,
@@ -109,8 +110,7 @@ describe('GET /transactions query validation', () => {
       .get(`/transactions${query}`)
       .set(...bearer(user));
 
-  const listOk = (query: string) =>
-    expectJson<PaginatedResponse<Transaction>>(list(query));
+  const listOk = (query: string) => expectJson<TransactionsPage>(list(query));
 
   it('returns a paginated envelope with defaults', async () => {
     expect(await listOk('')).toEqual({
@@ -118,7 +118,17 @@ describe('GET /transactions query validation', () => {
       total: 0,
       page: 1,
       pageSize: 10,
+      currency: 'RSD',
+      ratesDate: null,
     });
+  });
+
+  it.each(['RSD', 'EUR', 'HUF'])('accepts currency=%s', async (currency) => {
+    expect((await listOk(`?currency=${currency}`)).currency).toBe(currency);
+  });
+
+  it.each(['USD', 'eur', ''])('rejects currency=%s', async (currency) => {
+    expectRule(await list(`?currency=${currency}`), 'currency must be one of');
   });
 
   it.each([10, 20, 50])('accepts pageSize=%i', async (pageSize) => {
@@ -254,6 +264,7 @@ describe('GET /transactions/summary query validation', () => {
       '?dateFrom=2026-10-01T00:00:00.000Z&dateTo=2026-09-01T00:00:00.000Z',
     ],
     ['an unknown parameter', '?foo=1'],
+    ['an unsupported currency', '?currency=USD'],
   ])('rejects %s', async (_label, query) => {
     expect((await summary(query)).status).toBe(400);
   });
@@ -272,11 +283,32 @@ describe('POST /transactions body validation', () => {
     expect(response.status).toBe(201);
     expect(response.body as Transaction).toMatchObject({
       amount: '12.50',
+      currency: 'RSD',
       type: 'EXPENSE',
       description: null,
       categoryId,
     });
     expect(response.body).not.toHaveProperty('userId');
+  });
+
+  it('requires a currency', async () => {
+    const { currency: _omitted, ...withoutCurrency } = validBody();
+
+    expectRule(await create(withoutCurrency), 'currency must be one of');
+  });
+
+  it.each(['USD', 'eur', 42])('rejects currency=%s', async (currency) => {
+    expectRule(
+      await create({ ...validBody(), currency }),
+      'currency must be one of'
+    );
+  });
+
+  it.each(['EUR', 'HUF'])('stores currency=%s as sent', async (currency) => {
+    const response = await create({ ...validBody(), currency });
+
+    expect(response.status).toBe(201);
+    expect(response.body.currency).toBe(currency);
   });
 
   it('rejects an amount sent as a string', async () => {
@@ -376,7 +408,16 @@ describe('PATCH /transactions/:id body validation', () => {
     expect(response.body.description).toBeNull();
   });
 
-  it.each(['amount', 'type', 'date', 'categoryId'])(
+  it('changes the currency without converting the amount', async () => {
+    const id = await createOne();
+
+    const response = await patch(id, { currency: 'EUR' });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ amount: '12.50', currency: 'EUR' });
+  });
+
+  it.each(['amount', 'currency', 'type', 'date', 'categoryId'])(
     'rejects null for %s',
     async (field) => {
       const id = await createOne();

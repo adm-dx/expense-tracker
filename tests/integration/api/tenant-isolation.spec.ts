@@ -35,6 +35,7 @@ beforeEach(async () => {
     .set(...bearer(alice))
     .send({
       amount: 250,
+      currency: 'RSD',
       type: 'EXPENSE',
       date: '2026-09-10T00:00:00.000Z',
       categoryId: aliceCategoryId,
@@ -145,6 +146,7 @@ describe("one user can't reach another user's data", () => {
       .set(...bearer(bob))
       .send({
         amount: 1,
+        currency: 'RSD',
         type: 'EXPENSE',
         date: '2026-09-10T00:00:00.000Z',
         categoryId: aliceCategoryId,
@@ -162,6 +164,7 @@ describe("one user can't reach another user's data", () => {
       .set(...bearer(bob))
       .send({
         amount: 1,
+        currency: 'RSD',
         type: 'EXPENSE',
         date: '2026-09-10T00:00:00.000Z',
         categoryId: bobCategoryId,

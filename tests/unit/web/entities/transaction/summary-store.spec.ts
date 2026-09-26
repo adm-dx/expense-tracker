@@ -19,6 +19,8 @@ function makeSummary(totalExpense: string): TransactionSummary {
     totalExpense,
     balance: `-${totalExpense}`,
     byCategory: [],
+    currency: 'RSD',
+    ratesDate: null,
   };
 }
 
@@ -28,6 +30,7 @@ beforeEach(() => {
   useTransactionsStore.getState().reset();
   useTransactionsStore.setState({
     period: { dateFrom: '2026-09-01', dateTo: '2026-09-30' },
+    currency: 'RSD',
   });
 });
 
@@ -40,6 +43,7 @@ describe('useSummaryStore', () => {
     expect(summary).toHaveBeenCalledWith({
       dateFrom: '2026-09-01T00:00:00.000Z',
       dateTo: '2026-09-30T23:59:59.999Z',
+      currency: 'RSD',
     });
     expect(useSummaryStore.getState()).toMatchObject({
       summary: makeSummary('10.00'),
@@ -85,5 +89,24 @@ describe('useSummaryStore', () => {
       summary: null,
       status: 'idle',
     });
+  });
+
+  it('does not fetch before the currency is synced in', async () => {
+    useTransactionsStore.setState({ currency: null });
+
+    await useSummaryStore.getState().fetch();
+
+    expect(summary).not.toHaveBeenCalled();
+  });
+
+  it('asks for the currency held by the transactions store', async () => {
+    summary.mockResolvedValue(makeSummary('10.00'));
+    useTransactionsStore.getState().setCurrency('HUF');
+
+    await useSummaryStore.getState().fetch();
+
+    expect(summary).toHaveBeenCalledWith(
+      expect.objectContaining({ currency: 'HUF' })
+    );
   });
 });
