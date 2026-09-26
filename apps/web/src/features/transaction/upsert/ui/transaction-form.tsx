@@ -1,6 +1,10 @@
 'use client';
 
-import type { Transaction } from '@expense-tracker/types';
+import {
+  CURRENCIES,
+  DEFAULT_CURRENCY,
+  type Transaction,
+} from '@expense-tracker/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useCategoriesStore } from '@/entities/category';
@@ -31,6 +35,7 @@ function toFormValues(transaction?: Transaction): TransactionFormValues {
       type: 'EXPENSE',
       categoryId: '',
       amount: '',
+      currency: DEFAULT_CURRENCY,
       date: todayDateInputValue(),
       description: '',
     };
@@ -39,6 +44,7 @@ function toFormValues(transaction?: Transaction): TransactionFormValues {
     type: transaction.type,
     categoryId: transaction.categoryId,
     amount: transaction.amount,
+    currency: transaction.currency,
     date: toDateInputValue(transaction.date),
     description: transaction.description ?? '',
   };
@@ -71,7 +77,7 @@ export function TransactionForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-[1fr_1fr_110px]">
           <FormField
             control={form.control}
             name="type"
@@ -107,6 +113,31 @@ export function TransactionForm({
                     {...field}
                   />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {/* Changing it relabels the amount; it doesn't convert it. */}
+          <FormField
+            control={form.control}
+            name="currency"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Currency</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {CURRENCIES.map((code) => (
+                      <SelectItem key={code} value={code}>
+                        {code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

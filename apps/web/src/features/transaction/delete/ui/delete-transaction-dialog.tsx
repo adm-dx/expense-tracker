@@ -36,7 +36,7 @@ export function DeleteTransactionDialog({
           <AlertDialogTitle>Delete transaction?</AlertDialogTitle>
           <AlertDialogDescription>
             {transaction
-              ? `${formatAmount(transaction.amount, transaction.type)} on ${formatDate(transaction.date)} will be permanently deleted. `
+              ? `${formatAmount(transaction.amount, transaction.type, transaction.currency)} on ${formatDate(transaction.date)} will be permanently deleted. `
               : ''}
             This can&apos;t be undone.
           </AlertDialogDescription>

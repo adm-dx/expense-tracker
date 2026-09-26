@@ -8,7 +8,7 @@ import { TransactionDialog } from '@/features/transaction/upsert';
 import { useCategoriesStore, useCategoryMap } from '@/entities/category';
 import { useTransactionsStore } from '@/entities/transaction';
 import { cn } from '@/shared/lib/utils';
-import { formatAmount, formatDate } from '@/shared/lib/format';
+import { formatAmount, formatDate, formatMoney } from '@/shared/lib/format';
 import {
   Alert,
   AlertDescription,
@@ -37,6 +37,8 @@ export function TransactionsTable() {
   const page = useTransactionsStore((state) => state.page);
   const pageSize = useTransactionsStore((state) => state.pageSize);
   const period = useTransactionsStore((state) => state.period);
+  const currency = useTransactionsStore((state) => state.currency);
+  const itemsCurrency = useTransactionsStore((state) => state.itemsCurrency);
   const fetchTransactions = useTransactionsStore((state) => state.fetch);
   const loadCategories = useCategoriesStore((state) => state.load);
   const categoryMap = useCategoryMap();
@@ -50,7 +52,7 @@ export function TransactionsTable() {
 
   useEffect(() => {
     void fetchTransactions();
-  }, [page, pageSize, period, fetchTransactions]);
+  }, [page, pageSize, period, currency, fetchTransactions]);
 
   function openAction(kind: 'edit' | 'delete', transaction: Transaction) {
     setSelected(transaction);
@@ -61,7 +63,9 @@ export function TransactionsTable() {
     if (!open) setAction(null);
   }
 
-  const isInitialLoading = status === 'loading' && items.length === 0;
+  // 'idle' covers the wait for the display currency to be restored.
+  const isInitialLoading =
+    (status === 'loading' || status === 'idle') && items.length === 0;
 
   return (
     <div className="space-y-4">
@@ -92,7 +96,9 @@ export function TransactionsTable() {
               <TableHead>Category</TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Type</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="text-right">
+                {itemsCurrency ? `Amount (${itemsCurrency})` : 'Amount'}
+              </TableHead>
               <TableHead className="w-[52px]">
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -142,13 +148,29 @@ export function TransactionsTable() {
                     {transaction.description ?? '—'}
                   </TableCell>
                   <TableCell>{isIncome ? 'Income' : 'Expense'}</TableCell>
-                  <TableCell
-                    className={cn(
-                      'whitespace-nowrap text-right font-medium tabular-nums',
-                      isIncome ? 'text-green-600' : 'text-red-600'
-                    )}
-                  >
-                    {formatAmount(transaction.amount, transaction.type)}
+                  <TableCell className="whitespace-nowrap text-right tabular-nums">
+                    <span
+                      className={cn(
+                        'font-medium',
+                        isIncome ? 'text-green-600' : 'text-red-600'
+                      )}
+                    >
+                      {formatAmount(
+                        transaction.convertedAmount,
+                        transaction.type,
+                        itemsCurrency ?? transaction.currency
+                      )}
+                    </span>
+                    {/* What was actually entered, when it differs. */}
+                    {itemsCurrency &&
+                      transaction.currency !== itemsCurrency && (
+                        <span className="block text-xs text-muted-foreground">
+                          {formatMoney(
+                            transaction.amount,
+                            transaction.currency
+                          )}
+                        </span>
+                      )}
                   </TableCell>
                   <TableCell>
                     {/* Non-modal so opening a dialog from it doesn't leave the page inert. */}
