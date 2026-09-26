@@ -2,6 +2,7 @@ import {
   formatAmount,
   formatCurrency,
   formatDate,
+  getInitials,
   toDateInputValue,
   toIsoDate,
   toIsoEndOfDay,
@@ -82,5 +83,20 @@ describe('date helpers', () => {
 
       expect(todayDateInputValue()).toBe('2026-01-05');
     });
+  });
+});
+
+describe('getInitials', () => {
+  it('takes the first letter of a single name', () => {
+    expect(getInitials('ann')).toBe('A');
+  });
+
+  it('takes the first letters of the first two words', () => {
+    expect(getInitials('Ada Lovelace')).toBe('AL');
+    expect(getInitials('Ada King Lovelace')).toBe('AK');
+  });
+
+  it('ignores extra whitespace', () => {
+    expect(getInitials('  ada   lovelace ')).toBe('AL');
   });
 });

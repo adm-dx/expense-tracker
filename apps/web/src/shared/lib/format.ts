@@ -49,3 +49,13 @@ export function todayDateInputValue(): string {
   const day = String(now.getDate()).padStart(2, '0');
   return `${now.getFullYear()}-${month}-${day}`;
 }
+
+/** Up to two initials for an avatar, e.g. "Ada Lovelace" → "AL". */
+export function getInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+}
