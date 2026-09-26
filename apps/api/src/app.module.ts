@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
+import { WeatherModule } from './modules/weather/weather.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.mod
     CategoriesModule,
     TransactionsModule,
     ExchangeRatesModule,
+    WeatherModule,
   ],
   controllers: [],
   providers: [],
