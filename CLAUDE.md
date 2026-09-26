@@ -204,11 +204,13 @@ The web app uses Next.js 16 App Router as the routing shell, with everything els
 - `src/widgets/`: composite UI blocks assembled from multiple features/entities (e.g. `app-header`, `transactions-table`, `transactions-summary`). Add a widget only when a block actually composes several features/entities.
 - `src/app/`: Next.js routing layer (this _is_ FSD's "pages" layer here — there is no separate `src/pages` folder). Route files stay thin: they compose `widgets`/`features`/`entities`/`shared` and add layout/metadata. May import any lower layer.
 
-**Import direction rule:** `shared → entities → features → widgets → app`, imports only flow "up" this list — never sideways within the same layer, never downward. Each slice exposes its public surface via `index.ts`; don't deep-import another slice's internals. One documented exception: feature groups (`features/auth/*`, `features/transaction/*`) have no group-level barrel — consumers import the sub-module directly (`features/auth/login`, `features/transaction/upsert`), since each sub-module is an independent entry point with its own `index.ts`.
+**Import direction rule:** `shared → entities → features → widgets → app`, imports only flow "up" this list — never sideways within the same layer, never downward. Each slice exposes its public surface via `index.ts`; don't deep-import another slice's internals. One documented exception: feature groups (`features/auth/*`, `features/transaction/*`, `features/category/*`) have no group-level barrel — consumers import the sub-module directly (`features/auth/login`, `features/transaction/upsert`), since each sub-module is an independent entry point with its own `index.ts`.
 
 **Session-scoped stores:** a store holding data for the signed-in user (`entities/category`, `entities/transaction`) registers its `reset` via `registerStoreReset` (`shared/lib/store-reset.ts`), and `entities/session` calls `resetRegisteredStores()` on sign-in, sign-out and auth failure. This keeps one user's data from leaking into the next session in the same tab without `entities/*` slices importing each other. Any store whose `fetch` can be in flight across a reset must also invalidate its pending request (the `latestRequestId` pattern), or a late response will refill a cleared store.
 
 **Display currency:** `entities/currency` holds the persisted display currency (default RSD, `localStorage` key `display-currency`). It's a device preference, so it is deliberately **not** registered with `registerStoreReset` and survives sign-out. `entities/transaction` can't import it, so `features/currency/select`'s `DisplayCurrencySync` (mounted in `app/(app)/layout.tsx`) pushes it into `useTransactionsStore.currency` after hydration; the summary store reads it from there, like `period`. Both stores skip `fetch()` while `currency` is `null`, so nothing is loaded in RSD before a stored EUR is restored.
+
+**Categories page:** `app/(app)/categories` composes `widgets/categories-list` (icon, name, transaction count, edit/delete menu) and `features/category/upsert`'s `AddCategoryButton`. A category is shown by its **icon, not its color**: `entities/category`'s `CategoryIcon` maps the key to a lucide component through `CATEGORY_ICON_COMPONENTS`, typed `Record<CategoryIcon, LucideIcon>`, so a key added to the shared list without a component fails to compile. The form's `IconPicker` is a popover grid of every icon. `features/category/delete` asks for a target category when the one being deleted has transactions, and reloads the transactions and summary after moving them.
 
 **Weather widget:** `features/weather/current`'s `WeatherWidget` sits in the middle of `app-header`. It asks the browser for an approximate position (`shared/lib/geolocation.ts`) and loads `entities/weather` on mount, every hour, when a tab with hour-old weather comes back to the front, and when the location permission changes. Without a position (denied, unsupported, timed out) it renders nothing. Falling back to a city from the user's settings is planned, not built.
 
@@ -229,6 +231,8 @@ Current models in `apps/api/prisma/schema.prisma`:
 - **User**: email (unique), name, `passwordHash`, `isActive`, `lastLoginAt`
 - **RefreshToken**: hashed refresh tokens per user, with expiry and revocation
 - **Category**: per-user (`@@unique([userId, name])`), with color and icon; default categories are seeded on registration
+  - `icon` must be one of `CATEGORY_ICONS` in `@expense-tracker/types` (lucide names; the API validates with `@IsIn`). Only the name and the icon can be edited; `color` is optional on create (the server picks the next one from `CATEGORY_COLORS`) and isn't shown in the UI
+  - `GET /categories` returns each category's `transactionCount`. `DELETE /categories/:id?reassignTo=<id>` moves the transactions to another of the user's categories and deletes it in one DB transaction; without `reassignTo`, a category with transactions answers 409
 - **Transaction**: `amount` `Decimal(12,2)` in `currency` (`RSD` | `EUR` | `HUF`, default `RSD`), `type` (`INCOME` | `EXPENSE`), optional description, date; indexed on `(userId, date)`
   - Deleting a user cascades to everything; deleting a category that still has transactions is blocked (`onDelete: Restrict`)
   - Every query is scoped by `userId` — cross-user access is covered by `tests/integration/api/tenant-isolation.spec.ts`
@@ -249,7 +253,7 @@ Current models in `apps/api/prisma/schema.prisma`:
 - After changing the Prisma schema, run `npx prisma generate` before using the client
 - The PostgreSQL container persists data in a Docker volume - use `npm run db:stop` to stop (keeps data) or `docker compose -f docker/docker-compose.yml down -v` to remove data
 - Frontend and backend must both be running for full functionality
-- Changes to `packages/types` require rebuilding apps that depend on it
+- Changes to `packages/types` require rebuilding apps that depend on it. The web and the tests read its `src`; the API resolves it through `node_modules` to the built `dist`, which `prebuild`/`predev` in `apps/api` rebuild first (with `rootDir: ./src`, the API can't compile the package's sources itself)
 
 ## Git Workflow (GitHub Flow)
 
