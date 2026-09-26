@@ -54,7 +54,9 @@ export function CategoryForm({
             control={form.control}
             name="icon"
             render={({ field }) => (
-              // A column, so the label sits above the button, level with "Name".
+              // Both fields are columns: an inline label would take the parent's
+              // line height instead of its own `leading-none`, and the two rows
+              // would drift apart.
               <FormItem className="flex flex-col">
                 <FormLabel>Icon</FormLabel>
                 <FormControl>
@@ -68,7 +70,7 @@ export function CategoryForm({
             control={form.control}
             name="name"
             render={({ field }) => (
-              <FormItem className="flex-1">
+              <FormItem className="flex flex-1 flex-col">
                 <FormLabel>Name</FormLabel>
                 <FormControl>
                   <Input
