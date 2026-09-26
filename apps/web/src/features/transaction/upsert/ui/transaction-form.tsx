@@ -2,12 +2,13 @@
 
 import {
   CURRENCIES,
-  DEFAULT_CURRENCY,
+  type Currency,
   type Transaction,
 } from '@expense-tracker/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { CategoryIcon, useCategoriesStore } from '@/entities/category';
+import { useCurrencyStore } from '@/entities/currency';
 import { todayDateInputValue, toDateInputValue } from '@/shared/lib/format';
 import {
   Button,
@@ -29,13 +30,17 @@ import {
 import { transactionSchema, type TransactionFormValues } from '../model/schema';
 import { useUpsertTransaction } from '../model/use-upsert-transaction';
 
-function toFormValues(transaction?: Transaction): TransactionFormValues {
+/** A new transaction starts in the user's currency setting. */
+function toFormValues(
+  transaction: Transaction | undefined,
+  defaultCurrency: Currency
+): TransactionFormValues {
   if (!transaction) {
     return {
       type: 'EXPENSE',
       categoryId: '',
       amount: '',
-      currency: DEFAULT_CURRENCY,
+      currency: defaultCurrency,
       date: todayDateInputValue(),
       description: '',
     };
@@ -62,6 +67,7 @@ export function TransactionForm({
   onCancel,
 }: TransactionFormProps) {
   const categories = useCategoriesStore((state) => state.categories);
+  const defaultCurrency = useCurrencyStore((state) => state.currency);
   const categoriesStatus = useCategoriesStore((state) => state.status);
   const noCategories =
     categoriesStatus !== 'loading' && categories.length === 0;
@@ -71,7 +77,7 @@ export function TransactionForm({
   });
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
-    defaultValues: toFormValues(transaction),
+    defaultValues: toFormValues(transaction, defaultCurrency),
   });
 
   return (

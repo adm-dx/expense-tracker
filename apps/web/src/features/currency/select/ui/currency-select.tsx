@@ -6,7 +6,10 @@ import {
   type ExchangeRates,
 } from '@expense-tracker/types';
 import { ChevronDown } from 'lucide-react';
+import { toast } from 'sonner';
 import { useCurrencyStore, useExchangeRatesStore } from '@/entities/currency';
+import { useSettingsStore } from '@/entities/settings';
+import { getErrorMessage } from '@/shared/lib/error';
 import { formatDate } from '@/shared/lib/format';
 import {
   Button,
@@ -39,7 +42,7 @@ function describeRates(rates: ExchangeRates, target: Currency): string[] {
 export function CurrencySelect() {
   const currency = useCurrencyStore((state) => state.currency);
   const hasHydrated = useCurrencyStore((state) => state.hasHydrated);
-  const setCurrency = useCurrencyStore((state) => state.setCurrency);
+  const updateSettings = useSettingsStore((state) => state.update);
   const rates = useExchangeRatesStore((state) => state.rates);
   const ratesStatus = useExchangeRatesStore((state) => state.status);
   const loadRates = useExchangeRatesStore((state) => state.load);
@@ -75,7 +78,12 @@ export function CurrencySelect() {
         <DropdownMenuRadioGroup
           value={currency}
           onValueChange={(value) => {
-            if (isCurrency(value)) setCurrency(value);
+            if (!isCurrency(value) || value === currency) return;
+            // Saved as the user's setting; `features/settings/sync` copies it
+            // into the currency store as soon as the change is made.
+            updateSettings({ currency: value }).catch((err: unknown) => {
+              toast.error(getErrorMessage(err));
+            });
           }}
         >
           {CURRENCIES.map((code) => (

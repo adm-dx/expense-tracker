@@ -1,6 +1,7 @@
 import type {
   AuthResponse,
   AuthTokens,
+  ChangePasswordRequest,
   LoginRequest,
   RefreshTokenRequest,
   RegisterRequest,
@@ -21,4 +22,7 @@ export const authApi = {
   logout: (body: RefreshTokenRequest) =>
     httpClient.post<void>('/auth/logout', body),
   me: () => httpClient.get<User>('/auth/me'),
+  /** Signs out every other session; the returned tokens keep this one. */
+  changePassword: (body: ChangePasswordRequest) =>
+    httpClient.post<AuthTokens>('/auth/change-password', body),
 };

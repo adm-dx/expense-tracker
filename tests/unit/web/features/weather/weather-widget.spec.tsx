@@ -1,6 +1,11 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { CurrentWeather } from '@expense-tracker/types';
+import {
+  DEFAULT_USER_SETTINGS,
+  type CurrentWeather,
+  type LocationSetting,
+} from '@expense-tracker/types';
+import { useSettingsStore } from '@web/entities/settings';
 import { useWeatherStore } from '@web/entities/weather';
 import { WeatherWidget } from '@web/features/weather/current';
 import { weatherApi } from '@web/shared/api/weather-api';
@@ -36,6 +41,20 @@ const WEATHER: CurrentWeather = {
 
 let unwatchPermission: jest.Mock;
 
+function setLocation(location: LocationSetting) {
+  useSettingsStore.setState({
+    settings: { ...DEFAULT_USER_SETTINGS, location },
+    status: 'success',
+  });
+}
+
+const NOVI_SAD: LocationSetting = {
+  mode: 'manual',
+  name: 'Novi Sad, RS',
+  lat: 45.25,
+  lon: 19.84,
+};
+
 function setVisibility(state: DocumentVisibilityState) {
   Object.defineProperty(document, 'visibilityState', {
     value: state,
@@ -61,6 +80,8 @@ beforeEach(() => {
   locate.mockResolvedValue({ lat: 44.79, lon: 20.45 });
   getWeather.mockResolvedValue(WEATHER);
   useWeatherStore.getState().reset();
+  useSettingsStore.getState().reset();
+  setLocation({ mode: 'auto' });
 });
 
 afterEach(() => {
@@ -184,6 +205,56 @@ describe('WeatherWidget', () => {
 
     expect(getWeather).toHaveBeenCalledTimes(1);
     expect(unwatchPermission).toHaveBeenCalled();
+  });
+
+  it('waits for the settings before asking for a position', async () => {
+    useSettingsStore.getState().reset();
+    render(<WeatherWidget />);
+    await flush();
+    expect(locate).not.toHaveBeenCalled();
+
+    act(() => setLocation({ mode: 'auto' }));
+    await flush();
+
+    expect(locate).toHaveBeenCalledTimes(1);
+    expect(getWeather).toHaveBeenCalledWith({ lat: 44.79, lon: 20.45 });
+  });
+
+  it('uses the browser position when the settings cannot be loaded', async () => {
+    useSettingsStore.getState().reset();
+    useSettingsStore.setState({ status: 'error', error: 'down' });
+
+    render(<WeatherWidget />);
+    await flush();
+
+    expect(locate).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the weather for the town chosen in the settings', async () => {
+    setLocation(NOVI_SAD);
+
+    render(<WeatherWidget />);
+    await flush();
+
+    expect(locate).not.toHaveBeenCalled();
+    expect(getWeather).toHaveBeenCalledWith({ lat: 45.25, lon: 19.84 });
+    // The permission only matters for the browser's position.
+    expect(watchPermission).not.toHaveBeenCalled();
+  });
+
+  it('switches place when the setting changes', async () => {
+    render(<WeatherWidget />);
+    await flush();
+    expect(getWeather).toHaveBeenLastCalledWith({ lat: 44.79, lon: 20.45 });
+
+    act(() => setLocation(NOVI_SAD));
+    await flush();
+    expect(getWeather).toHaveBeenLastCalledWith({ lat: 45.25, lon: 19.84 });
+    expect(unwatchPermission).toHaveBeenCalled();
+
+    act(() => setLocation({ mode: 'auto' }));
+    await flush();
+    expect(locate).toHaveBeenCalledTimes(2);
   });
 
   it('opens the details with the update time and attribution', async () => {

@@ -2,12 +2,14 @@ import type { ReactNode } from 'react';
 import { AppHeader } from '@/widgets/app-header';
 import { AppSidebar } from '@/widgets/app-sidebar';
 import { DisplayCurrencySync } from '@/features/currency/select';
+import { SettingsSync } from '@/features/settings/sync';
 import { AuthGuard } from '@/entities/session';
 
 /** Shell for every signed-in page: header on top, navigation on the left. */
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AuthGuard>
+      <SettingsSync />
       <DisplayCurrencySync />
       <AppHeader />
       <div className="flex">

@@ -68,3 +68,7 @@ export {
   TableRow,
 } from './table';
 export { Popover, PopoverContent, PopoverTrigger } from './popover';
+export {
+  SegmentedControl,
+  type SegmentedControlOption,
+} from './segmented-control';
