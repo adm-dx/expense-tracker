@@ -144,6 +144,25 @@ export interface ExchangeRates {
   rates: Record<Currency, string>;
 }
 
+/** Coordinates for `GET /weather`, in decimal degrees. */
+export interface WeatherParams {
+  lat: number;
+  lon: number;
+}
+
+/** Weather at the requested place right now. */
+export interface CurrentWeather {
+  /** Air temperature 2 m above ground, °C. */
+  temperature: number;
+  /** WMO weather interpretation code (0 clear sky … 99 thunderstorm with hail). */
+  weatherCode: number;
+  isDay: boolean;
+  /** "Belgrade, RS"; null when the place could not be named. */
+  location: string | null;
+  /** When the provider measured it. */
+  observedAt: string;
+}
+
 export interface RegisterRequest {
   name: string;
   email: string;
