@@ -51,6 +51,7 @@ describe('TokenService', () => {
       updateTokenHash: jest.fn(),
       revoke: jest.fn(),
       revokeAllForUser: jest.fn(),
+      deleteAllForUser: jest.fn().mockResolvedValue({ count: 0 }),
     } as unknown as jest.Mocked<RefreshTokensRepository>;
     queryBus = { execute: jest.fn() } as unknown as jest.Mocked<QueryBus>;
     service = new TokenService(
@@ -170,6 +171,17 @@ describe('TokenService', () => {
       await service.revoke('garbage-token');
 
       expect(refreshTokensRepository.revoke).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('revokeAll', () => {
+    it('deletes the tokens rather than revoking them', async () => {
+      await service.revokeAll('user-1');
+
+      expect(refreshTokensRepository.deleteAllForUser).toHaveBeenCalledWith(
+        'user-1'
+      );
+      expect(refreshTokensRepository.revokeAllForUser).not.toHaveBeenCalled();
     });
   });
 });

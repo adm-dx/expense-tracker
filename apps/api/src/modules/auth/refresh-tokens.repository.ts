@@ -32,6 +32,15 @@ export class RefreshTokensRepository {
     });
   }
 
+  /**
+   * Removes every refresh token of the user. Unlike revoking, a deleted
+   * token is simply unknown when used, so it doesn't look like a replayed
+   * one and doesn't trigger `revokeAllForUser` on the tokens issued after.
+   */
+  deleteAllForUser(userId: string): Promise<{ count: number }> {
+    return this.prisma.refreshToken.deleteMany({ where: { userId } });
+  }
+
   revokeAllForUser(userId: string): Promise<{ count: number }> {
     return this.prisma.refreshToken.updateMany({
       where: { userId, revokedAt: null },
