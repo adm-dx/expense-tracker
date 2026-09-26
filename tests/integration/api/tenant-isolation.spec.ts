@@ -179,6 +179,41 @@ describe("one user can't reach another user's data", () => {
     expect(response.status).toBe(404);
   });
 
+  it("can't move their transactions into someone else's category on delete", async () => {
+    const bobCategoryId = (
+      await prisma.category.findFirstOrThrow({ where: { userId: bob.id } })
+    ).id;
+
+    const response = await attempt(
+      'delete',
+      `/categories/${bobCategoryId}?reassignTo=${aliceCategoryId}`
+    );
+
+    expect(response.status).toBe(404);
+    expect(
+      await prisma.category.findUnique({ where: { id: bobCategoryId } })
+    ).not.toBeNull();
+  });
+
+  it("can't delete someone else's category by moving its transactions", async () => {
+    const bobCategoryId = (
+      await prisma.category.findFirstOrThrow({ where: { userId: bob.id } })
+    ).id;
+
+    const response = await attempt(
+      'delete',
+      `/categories/${aliceCategoryId}?reassignTo=${bobCategoryId}`
+    );
+
+    expect(response.status).toBe(404);
+    expect(
+      await prisma.category.findUnique({ where: { id: aliceCategoryId } })
+    ).toEqual(aliceCategoryBefore);
+    expect(
+      await prisma.transaction.findUnique({ where: { id: aliceTransactionId } })
+    ).toEqual(aliceTransactionBefore);
+  });
+
   it("leaves the owner's data untouched", async () => {
     const response = await server()
       .get('/transactions')
