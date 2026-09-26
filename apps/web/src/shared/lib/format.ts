@@ -35,6 +35,24 @@ export function formatDate(iso: string): string {
   return dateFormatter.format(new Date(iso));
 }
 
+// In the viewer's timezone, unlike `formatDate`: this is a moment, not a day.
+const timeFormatter = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+/** ISO timestamp → local time of day, e.g. `2:05 PM`. */
+export function formatTime(iso: string): string {
+  return timeFormatter.format(new Date(iso));
+}
+
+/** Whole degrees Celsius, e.g. `18°C`, `−3°C`; never `-0°C`. */
+export function formatTemperature(celsius: number): string {
+  const rounded = Math.round(celsius);
+  // `-0.3` rounds to -0, which prints as "0" and is not below zero.
+  return rounded < 0 ? `−${-rounded}°C` : `${rounded}°C`;
+}
+
 /** `2026-09-16` → `2026-09-16T00:00:00.000Z` */
 export function toIsoDate(date: string): string {
   return `${date}T00:00:00.000Z`;
