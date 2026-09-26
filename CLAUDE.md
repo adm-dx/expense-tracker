@@ -170,13 +170,15 @@ The API follows NestJS module structure:
 - `src/app.config.ts`: global `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`) and CORS (`WEB_URL`). Put app-wide setup here, not in `main.ts`, so the integration tests boot with the same rules
 - `src/app.module.ts`: Root module (`ConfigModule`, `CqrsModule.forRoot()`, Prisma, feature modules)
 - `src/prisma/`: Global Prisma module for database access
-- `src/modules/`: `auth`, `users`, `categories`, `transactions`, `exchange-rates`. Each has controller → service → repository (the only layer that touches Prisma), with DTOs in `dto/`
+- `src/modules/`: `auth`, `users`, `categories`, `transactions`, `exchange-rates`, `weather`. Each has controller → service → repository (the only layer that touches Prisma), with DTOs in `dto/`
 
 **Auth:** `JwtAuthGuard` is registered as a global `APP_GUARD` in `AuthModule`, so every route requires an access token unless marked `@Public()`. Get the caller with `@CurrentUser()`. Refresh tokens are stored hashed in the `RefreshToken` table (`refresh-tokens.repository.ts`).
 
 **Cross-module communication goes through CQRS, not imports of another module's services.** A module that others may call exposes a `contracts/` folder (commands, queries, events and their result types, re-exported from `contracts/index.ts`), and implements them in `handlers/`. Other modules import only from `../<module>/contracts` and dispatch via `CommandBus`/`QueryBus`/`EventBus`. Example: registration in `AuthService` runs `CreateUserCommand` (users) and `CreateDefaultCategoriesCommand` (categories); login publishes `UserLoggedInEvent`, handled in `users`.
 
 **Currencies:** a transaction stores the `amount` and the `currency` (`RSD` | `EUR` | `HUF`) it was entered in; nothing is converted on write. `GET /transactions` and `GET /transactions/summary` take `?currency=` (default `RSD`) and convert on read at **today's** rates: each row gets a `convertedAmount`, and the summary converts its per-currency SQL groups and rounds only the totals. The `exchange-rates` module fetches the rates (ExchangeRate-API open access, `EXCHANGE_RATES_URL`) behind the `ExchangeRatesProvider` DI token, caches them per UTC day, falls back to the last good rates when the provider is down, and answers 503 when it has none. Other modules get them via `GetExchangeRatesQuery` and convert with `convertAmount` from its `contracts`. Rates are requested only when some amount is in another currency than the requested one. Tests replace the provider with `FakeExchangeRatesProvider` (`tests/setup/exchange-rates.ts`) in `createTestApp`, so they never reach the network.
+
+**Weather:** `GET /weather?lat=&lon=` returns the current temperature (°C), WMO `weatherCode`, `isDay` and a city-level `location` ("Belgrade, RS", or `null`). The `weather` module reads Open-Meteo (`WEATHER_URL`) behind the `WeatherProvider` token and names the place with OpenStreetMap Nominatim (`GEOCODING_URL`) behind `GeocodingProvider`; the UI must keep both attributions. Coordinates are rounded to two decimals (~1 km) on the client and again on the server, which is also the cache key: weather for 30 min (served up to 3 h old while Open-Meteo is down, else 503), names for a day. A failed lookup only drops the name. Nominatim allows one request a second, so `NominatimProvider` queues its requests; don't bypass the cache. Tests replace both with `FakeWeatherProvider`/`FakeGeocodingProvider` (`tests/setup/weather.ts`) in `createTestApp`.
 
 **Prisma conventions:**
 
@@ -208,6 +210,8 @@ The web app uses Next.js 16 App Router as the routing shell, with everything els
 
 **Display currency:** `entities/currency` holds the persisted display currency (default RSD, `localStorage` key `display-currency`). It's a device preference, so it is deliberately **not** registered with `registerStoreReset` and survives sign-out. `entities/transaction` can't import it, so `features/currency/select`'s `DisplayCurrencySync` (mounted in `app/(app)/layout.tsx`) pushes it into `useTransactionsStore.currency` after hydration; the summary store reads it from there, like `period`. Both stores skip `fetch()` while `currency` is `null`, so nothing is loaded in RSD before a stored EUR is restored.
 
+**Weather widget:** `features/weather/current`'s `WeatherWidget` sits in the middle of `app-header`. It asks the browser for an approximate position (`shared/lib/geolocation.ts`) and loads `entities/weather` on mount, every hour, when a tab with hour-old weather comes back to the front, and when the location permission changes. Without a position (denied, unsupported, timed out) it renders nothing. Falling back to a city from the user's settings is planned, not built.
+
 **Client-persisted state:** any store that persists to `localStorage` (via Zustand's `persist` middleware) must use `skipHydration: true` + an explicit `hasHydrated` flag flipped in `onRehydrateStorage`, with a dedicated client component calling `store.persist.rehydrate()` once (mounted in root layout). This avoids SSR/localStorage hydration mismatches — see `entities/session` for the reference implementation.
 
 **shadcn/ui setup:** `components.json` aliases point `ui`/`components` at `@/shared/ui` and `utils`/`lib` at `@/shared/lib`, so `npx shadcn@latest add <name>` lands new primitives directly in the FSD `shared` layer. The project is pinned to Tailwind v3 — if a future `shadcn` CLI run offers to upgrade Tailwind to v4 or rewrite `globals.css` to `@import "tailwindcss"` syntax, decline it and add components manually instead.
@@ -237,6 +241,7 @@ Current models in `apps/api/prisma/schema.prisma`:
    - `API_PORT`: Backend port (default: 3001)
    - `NEXT_PUBLIC_API_URL`: Frontend's API endpoint
    - `EXCHANGE_RATES_URL`: exchange rates API (default `https://open.er-api.com/v6`; no key needed)
+   - `WEATHER_URL`, `GEOCODING_URL`: Open-Meteo and Nominatim (defaults `https://api.open-meteo.com/v1`, `https://nominatim.openstreetmap.org`; no keys)
 
 ## Important Notes
 

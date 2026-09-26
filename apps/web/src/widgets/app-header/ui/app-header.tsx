@@ -4,6 +4,7 @@ import { LogOut, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useLogout } from '@/features/auth/logout';
 import { CurrencySelect } from '@/features/currency/select';
+import { WeatherWidget } from '@/features/weather/current';
 import { useSessionStore } from '@/entities/session';
 import { getInitials } from '@/shared/lib/format';
 import {
@@ -24,13 +25,22 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background">
-      <div className="flex h-14 items-center gap-4 px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Wallet className="size-5" />
-          Expense Tracker
+      {/* Equal side columns keep the weather centred on the page. */}
+      <div className="grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-4 sm:gap-4">
+        <Link
+          href="/"
+          className="flex items-center gap-2 justify-self-start whitespace-nowrap font-semibold"
+        >
+          <Wallet className="size-5 shrink-0" />
+          <span className="max-sm:sr-only">Expense Tracker</span>
         </Link>
         {user && (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex justify-center">
+            <WeatherWidget />
+          </div>
+        )}
+        {user && (
+          <div className="flex items-center gap-2 justify-self-end">
             <CurrencySelect />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
