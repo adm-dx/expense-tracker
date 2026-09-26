@@ -1,8 +1,9 @@
-import { TransactionType } from '../../generated/prisma/client';
+import { Currency, TransactionType } from '../../generated/prisma/client';
 
 export interface PublicTransaction {
   id: string;
   amount: string;
+  currency: Currency;
   type: TransactionType;
   description: string | null;
   date: Date;
@@ -10,11 +11,22 @@ export interface PublicTransaction {
   createdAt: Date;
 }
 
+export interface PublicTransactionListItem extends PublicTransaction {
+  /** `amount` in the requested display currency, two fraction digits. */
+  convertedAmount: string;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
   page: number;
   pageSize: number;
+}
+
+export interface TransactionsPage extends PaginatedResponse<PublicTransactionListItem> {
+  currency: Currency;
+  /** Date of the rates used; null when no conversion was needed. */
+  ratesDate: Date | null;
 }
 
 export interface TransactionCategorySummary {
@@ -35,4 +47,7 @@ export interface TransactionSummary {
   totalExpense: string;
   balance: string;
   byCategory: TransactionCategorySummary[];
+  currency: Currency;
+  /** Date of the rates used; null when no conversion was needed. */
+  ratesDate: Date | null;
 }

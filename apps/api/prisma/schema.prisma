@@ -63,9 +63,17 @@ enum TransactionType {
   EXPENSE
 }
 
+enum Currency {
+  RSD
+  EUR
+  HUF
+}
+
 model Transaction {
   id          String          @id @default(uuid())
   amount      Decimal         @db.Decimal(12, 2)
+  // The currency `amount` was entered in; conversion happens on read.
+  currency    Currency        @default(RSD)
   type        TransactionType
   description String?
   date        DateTime

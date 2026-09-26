@@ -3,12 +3,23 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Transaction, TransactionType } from '../../generated/prisma/client';
+import { QueryBus } from '@nestjs/cqrs';
 import {
-  PaginatedResponse,
+  Currency,
+  Prisma,
+  Transaction,
+  TransactionType,
+} from '../../generated/prisma/client';
+import {
+  convertAmount,
+  ExchangeRatesSnapshot,
+  GetExchangeRatesQuery,
+} from '../exchange-rates/contracts';
+import {
   PublicTransaction,
   TransactionCategorySummary,
   TransactionSummary,
+  TransactionsPage,
 } from './types';
 import {
   TransactionFilters,
@@ -23,17 +34,19 @@ import {
 import { SummaryQuery } from './dto/summary.query';
 
 const FOREIGN_KEY_VIOLATION = 'P2003';
+export const DEFAULT_CURRENCY: Currency = Currency.RSD;
 
 @Injectable()
 export class TransactionsService {
   constructor(
-    private readonly transactionsRepository: TransactionsRepository
+    private readonly transactionsRepository: TransactionsRepository,
+    private readonly queryBus: QueryBus
   ) {}
 
   async list(
     userId: string,
     query: ListTransactionsQuery
-  ): Promise<PaginatedResponse<PublicTransaction>> {
+  ): Promise<TransactionsPage> {
     const filters: TransactionFilters = {};
     if (query.dateFrom) filters.dateFrom = new Date(query.dateFrom);
     if (query.dateTo) filters.dateTo = new Date(query.dateTo);
@@ -49,11 +62,26 @@ export class TransactionsService {
       filters,
       { skip: (page - 1) * pageSize, take: pageSize }
     );
+    const currency = query.currency ?? DEFAULT_CURRENCY;
+    const rates = await this.loadRatesIfNeeded(
+      items.map((transaction) => transaction.currency),
+      currency
+    );
     return {
-      items: items.map((transaction) => this.toPublic(transaction)),
+      items: items.map((transaction) => ({
+        ...this.toPublic(transaction),
+        convertedAmount: this.convert(
+          transaction.amount,
+          transaction.currency,
+          currency,
+          rates
+        ).toFixed(2),
+      })),
       total,
       page,
       pageSize,
+      currency,
+      ratesDate: rates?.date ?? null,
     };
   }
 
@@ -71,6 +99,7 @@ export class TransactionsService {
       const transaction = await this.transactionsRepository.create({
         userId,
         amount: this.toDecimal(dto.amount),
+        currency: dto.currency,
         type: dto.type,
         description: this.normalizeDescription(dto.description),
         date: new Date(dto.date),
@@ -92,6 +121,7 @@ export class TransactionsService {
 
     const data: Prisma.TransactionUncheckedUpdateInput = {};
     if (dto.amount !== undefined) data.amount = this.toDecimal(dto.amount);
+    if (dto.currency !== undefined) data.currency = dto.currency;
     if (dto.type !== undefined) data.type = dto.type;
     if (dto.description !== undefined) {
       data.description = this.normalizeDescription(dto.description);
@@ -115,6 +145,7 @@ export class TransactionsService {
     query: SummaryQuery
   ): Promise<TransactionSummary> {
     const { dateFrom, dateTo } = this.resolveSummaryPeriod(query);
+    const currency = query.currency ?? DEFAULT_CURRENCY;
 
     const rows = await this.transactionsRepository.sumByTypeAndCategory(
       userId,
@@ -125,28 +156,50 @@ export class TransactionsService {
       ? await this.transactionsRepository.findCategoriesByIds(categoryIds)
       : [];
     const categoriesById = new Map(categories.map((c) => [c.id, c]));
+    const rates = await this.loadRatesIfNeeded(
+      rows.map((row) => row.currency),
+      currency
+    );
 
+    // Rows come per currency: convert, then merge by (type, category).
+    // Rounded only at the end, so the totals don't drift.
     let totalIncome = new Prisma.Decimal(0);
     let totalExpense = new Prisma.Decimal(0);
+    const groups = new Map<
+      string,
+      { type: TransactionType; categoryId: string; amount: Prisma.Decimal }
+    >();
     for (const row of rows) {
+      const amount = this.convert(row.amount, row.currency, currency, rates);
       if (row.type === TransactionType.INCOME) {
-        totalIncome = totalIncome.plus(row.amount);
+        totalIncome = totalIncome.plus(amount);
       } else {
-        totalExpense = totalExpense.plus(row.amount);
+        totalExpense = totalExpense.plus(amount);
+      }
+      const key = `${row.type}:${row.categoryId}`;
+      const group = groups.get(key);
+      if (group) {
+        group.amount = group.amount.plus(amount);
+      } else {
+        groups.set(key, {
+          type: row.type,
+          categoryId: row.categoryId,
+          amount,
+        });
       }
     }
 
-    const byCategory = [...rows]
+    const byCategory = [...groups.values()]
       .sort((a, b) => b.amount.comparedTo(a.amount))
-      .map((row): TransactionCategorySummary => {
-        const category = categoriesById.get(row.categoryId);
+      .map((group): TransactionCategorySummary => {
+        const category = categoriesById.get(group.categoryId);
         return {
-          categoryId: row.categoryId,
+          categoryId: group.categoryId,
           name: category?.name ?? '',
           color: category?.color ?? '',
           icon: category?.icon ?? '',
-          type: row.type,
-          total: row.amount.toFixed(2),
+          type: group.type,
+          total: group.amount.toFixed(2),
         };
       });
 
@@ -157,6 +210,8 @@ export class TransactionsService {
       totalExpense: totalExpense.toFixed(2),
       balance: totalIncome.minus(totalExpense).toFixed(2),
       byCategory,
+      currency,
+      ratesDate: rates?.date ?? null,
     };
   }
 
@@ -164,6 +219,7 @@ export class TransactionsService {
     return {
       id: transaction.id,
       amount: transaction.amount.toFixed(2),
+      currency: transaction.currency,
       type: transaction.type,
       description: transaction.description,
       date: transaction.date,
@@ -201,7 +257,8 @@ export class TransactionsService {
     dateFrom: Date;
     dateTo: Date;
   } {
-    const hasMonthOrYear = query.month !== undefined || query.year !== undefined;
+    const hasMonthOrYear =
+      query.month !== undefined || query.year !== undefined;
     const hasRange = query.dateFrom !== undefined || query.dateTo !== undefined;
 
     if (hasMonthOrYear && hasRange) {
@@ -234,7 +291,10 @@ export class TransactionsService {
   }
 
   /** Whole UTC month with both bounds inclusive. */
-  private monthRange(year: number, month: number): {
+  private monthRange(
+    year: number,
+    month: number
+  ): {
     dateFrom: Date;
     dateTo: Date;
   } {
@@ -248,6 +308,30 @@ export class TransactionsService {
     if (dateFrom && dateTo && dateFrom > dateTo) {
       throw new BadRequestException('dateFrom must not be after dateTo');
     }
+  }
+
+  /**
+   * Rates are only needed when something is not already in `target`, so a
+   * single-currency view keeps working while the rates provider is down.
+   */
+  private async loadRatesIfNeeded(
+    currencies: Currency[],
+    target: Currency
+  ): Promise<ExchangeRatesSnapshot | null> {
+    if (currencies.every((currency) => currency === target)) return null;
+    return this.queryBus.execute<GetExchangeRatesQuery, ExchangeRatesSnapshot>(
+      new GetExchangeRatesQuery()
+    );
+  }
+
+  private convert(
+    amount: Prisma.Decimal,
+    from: Currency,
+    to: Currency,
+    rates: ExchangeRatesSnapshot | null
+  ): Prisma.Decimal {
+    // `rates` is null only when every amount is already in `to`.
+    return rates ? convertAmount(amount, from, to, rates) : amount;
   }
 
   private toDecimal(amount: number): Prisma.Decimal {
