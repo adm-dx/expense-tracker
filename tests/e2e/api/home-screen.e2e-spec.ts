@@ -260,6 +260,8 @@ describe('home screen journey', () => {
         0
       );
       expect(categoryTotal).toBe(expected.income + expected.expense);
+      const categoryCount = result.byCategory.reduce((n, c) => n + c.count, 0);
+      expect(categoryCount).toBe(rows.length);
     });
 
     it('month/year is the same September', async () => {

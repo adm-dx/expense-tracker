@@ -37,6 +37,8 @@ export interface TransactionCategorySummary {
   icon: string;
   type: TransactionType;
   total: string;
+  /** How many transactions make up `total`. */
+  count: number;
 }
 
 export interface TransactionSummary {

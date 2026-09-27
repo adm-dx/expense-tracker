@@ -218,7 +218,12 @@ export class TransactionsService {
     let totalExpense = new Prisma.Decimal(0);
     const groups = new Map<
       string,
-      { type: TransactionType; categoryId: string; amount: Prisma.Decimal }
+      {
+        type: TransactionType;
+        categoryId: string;
+        amount: Prisma.Decimal;
+        count: number;
+      }
     >();
     for (const row of rows) {
       const amount = this.convert(row.amount, row.currency, currency, rates);
@@ -231,11 +236,13 @@ export class TransactionsService {
       const group = groups.get(key);
       if (group) {
         group.amount = group.amount.plus(amount);
+        group.count += row.count;
       } else {
         groups.set(key, {
           type: row.type,
           categoryId: row.categoryId,
           amount,
+          count: row.count,
         });
       }
     }
@@ -251,6 +258,7 @@ export class TransactionsService {
           icon: category?.icon ?? '',
           type: group.type,
           total: group.amount.toFixed(2),
+          count: group.count,
         };
       });
 
