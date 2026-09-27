@@ -24,8 +24,8 @@ const api = settingsApi as jest.Mocked<typeof settingsApi>;
 
 const SAVED: UserSettings = {
   ...DEFAULT_USER_SETTINGS,
-  currency: 'EUR',
-  currencies: ['RSD', 'EUR', 'HUF'],
+  currency: 'RSD',
+  currencies: ['EUR', 'RSD', 'HUF'],
 };
 
 let fetchTransactions: jest.SpyInstance;
@@ -71,19 +71,19 @@ describe('CurrencyList', () => {
     renderList();
 
     expect(listedCurrencies()).toEqual([
-      'RSD (дин.)Serbian dinarDefault',
-      'EUR (€)Euro',
+      'EUR (€)EuroDefault',
+      'RSD (дин.)Serbian dinar',
       'HUF (Ft)Hungarian forint',
     ]);
   });
 
-  it('offers no way to remove RSD', () => {
+  it('offers no way to remove EUR, the default currency', () => {
     renderList();
 
     expect(
-      screen.queryByRole('button', { name: 'Remove RSD' })
+      screen.queryByRole('button', { name: 'Remove EUR' })
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Remove EUR' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Remove RSD' })).toBeEnabled();
   });
 
   it('adds a currency picked from the ones not enabled yet', async () => {
@@ -112,29 +112,29 @@ describe('CurrencyList', () => {
 
   it('removes a currency after confirming and reloads the converted transactions', async () => {
     api.removeCurrency.mockResolvedValue({
-      settings: { ...SAVED, currency: 'RSD', currencies: ['RSD', 'HUF'] },
+      settings: { ...SAVED, currency: 'EUR', currencies: ['EUR', 'HUF'] },
       convertedCount: 2,
     });
     const user = userEvent.setup();
     renderList();
 
-    await user.click(screen.getByRole('button', { name: 'Remove EUR' }));
+    await user.click(screen.getByRole('button', { name: 'Remove RSD' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveTextContent(
-      "Transactions in EUR will be converted to RSD (дин.) at today's exchange rate."
+      "Transactions in RSD will be converted to EUR (€) at today's exchange rate."
     );
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
 
-    expect(api.removeCurrency).toHaveBeenCalledWith('EUR');
+    expect(api.removeCurrency).toHaveBeenCalledWith('RSD');
     await waitFor(() =>
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     );
     expect(listedCurrencies()).toEqual([
-      'RSD (дин.)Serbian dinarDefault',
+      'EUR (€)EuroDefault',
       'HUF (Ft)Hungarian forint',
     ]);
     expect(toast.success).toHaveBeenCalledWith(
-      'EUR removed, 2 transactions converted to RSD'
+      'RSD removed, 2 transactions converted to EUR'
     );
     expect(fetchTransactions).toHaveBeenCalled();
     expect(fetchSummary).toHaveBeenCalled();
@@ -145,7 +145,7 @@ describe('CurrencyList', () => {
     const user = userEvent.setup();
     renderList();
 
-    await user.click(screen.getByRole('button', { name: 'Remove EUR' }));
+    await user.click(screen.getByRole('button', { name: 'Remove RSD' }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
 
@@ -154,7 +154,7 @@ describe('CurrencyList', () => {
     );
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     // The open dialog hides the list from the accessibility tree.
-    expect(useSettingsStore.getState().settings?.currencies).toContain('EUR');
+    expect(useSettingsStore.getState().settings?.currencies).toContain('RSD');
     expect(fetchTransactions).not.toHaveBeenCalled();
   });
 });

@@ -179,22 +179,22 @@ describe('user settings journey', () => {
 
 /**
  * Adding a currency, spending in it, then removing it: its transactions come
- * back in RSD at the day rates, and the table and the summary still agree.
- * Fake rates: 1 EUR = 100 RSD = 2 USD, so 1 USD = 50 RSD.
+ * back in EUR, the default currency, at the day rates, and the table and the
+ * summary still agree. Fake rates: 1 EUR = 2 USD.
  */
 describe('currency journey', () => {
   let user: AuthTokens;
   let categoryId: string;
 
-  const summaryInRsd = () =>
+  const summaryInEur = () =>
     expectJson<TransactionSummary>(
       server()
-        .get('/transactions/summary?month=9&year=2026&currency=RSD')
+        .get('/transactions/summary?month=9&year=2026&currency=EUR')
         .set(as(user))
     );
-  const listInRsd = () =>
+  const listInEur = () =>
     expectJson<TransactionsPage>(
-      server().get('/transactions?currency=RSD').set(as(user))
+      server().get('/transactions?currency=EUR').set(as(user))
     );
 
   it('signs up and adds US dollars', async () => {
@@ -215,7 +215,8 @@ describe('currency journey', () => {
       server().post('/settings/currencies').set(as(user)).send({ code: 'USD' })
     );
 
-    expect(settings.currencies).toEqual(['RSD', 'EUR', 'HUF', 'USD']);
+    // A new user has only EUR.
+    expect(settings.currencies).toEqual(['EUR', 'USD']);
   });
 
   it('shows amounts in dollars and records a purchase in them', async () => {
@@ -224,7 +225,7 @@ describe('currency journey', () => {
     );
     for (const [amount, currency] of [
       [12.5, 'USD'],
-      [100, 'RSD'],
+      [10, 'EUR'],
     ] as const) {
       await expectStatus(
         server().post('/transactions').set(as(user)).send({
@@ -238,31 +239,31 @@ describe('currency journey', () => {
       );
     }
 
-    const summary = await summaryInRsd();
-    // 12.50 USD = 625 RSD
-    expect(summary.totalExpense).toBe('725.00');
+    const summary = await summaryInEur();
+    // 12.50 USD = 6.25 EUR
+    expect(summary.totalExpense).toBe('16.25');
   });
 
-  it('removes dollars: the purchase is now in dinars, totals unchanged', async () => {
+  it('removes dollars: the purchase is now in euros, totals unchanged', async () => {
     const result = await expectJson<RemoveCurrencyResult>(
       server().delete('/settings/currencies/USD').set(as(user))
     );
 
     expect(result.convertedCount).toBe(1);
     expect(result.settings).toMatchObject({
-      currency: 'RSD',
-      currencies: ['RSD', 'EUR', 'HUF'],
+      currency: 'EUR',
+      currencies: ['EUR'],
     });
 
-    const page = await listInRsd();
+    const page = await listInEur();
     expect(page.ratesDate).toBeNull();
     expect(
       page.items.map((item) => [item.amount, item.currency]).sort()
     ).toEqual([
-      ['100.00', 'RSD'],
-      ['625.00', 'RSD'],
+      ['10.00', 'EUR'],
+      ['6.25', 'EUR'],
     ]);
-    expect((await summaryInRsd()).totalExpense).toBe('725.00');
+    expect((await summaryInEur()).totalExpense).toBe('16.25');
   });
 
   it('can no longer record a purchase in dollars', async () => {

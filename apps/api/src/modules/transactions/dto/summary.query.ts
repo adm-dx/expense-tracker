@@ -25,7 +25,7 @@ export class SummaryQuery {
   @IsISO8601({ strict: true })
   dateTo?: string;
 
-  /** Currency of the totals; defaults to RSD. */
+  /** Currency of the totals; defaults to EUR. */
   @IsOptional()
   @IsIn(CURRENCIES)
   currency?: Currency;

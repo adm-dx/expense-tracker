@@ -103,12 +103,12 @@ describe('default settings', () => {
     await expect(getSettings()).resolves.toEqual(DEFAULT_USER_SETTINGS);
   });
 
-  it('are system theme, RSD and the weather for Belgrade', () => {
+  it('are system theme, EUR alone and the weather for Belgrade', () => {
     expect(DEFAULT_USER_SETTINGS).toEqual({
       theme: 'system',
       colorScheme: 'slate',
-      currency: 'RSD',
-      currencies: ['RSD', 'EUR', 'HUF'],
+      currency: 'EUR',
+      currencies: ['EUR'],
       location: {
         mode: 'manual',
         name: 'Belgrade, RS',
@@ -139,11 +139,11 @@ describe('default settings', () => {
 
       await prisma.$executeRawUnsafe(backfill);
 
-      // It predates `currencies`, which a missing key reads as the default.
-      const { currencies: _currencies, ...backfilled } = DEFAULT_USER_SETTINGS;
+      // The defaults of the time: RSD, and no `currencies` yet.
+      const { currencies: _currencies, ...defaults } = DEFAULT_USER_SETTINGS;
+      const backfilled = { ...defaults, currency: 'RSD' };
       expect(await storedSettings()).toEqual(backfilled);
       expect(await storedSettings(other.id)).toEqual(backfilled);
-      await expect(getSettings(other)).resolves.toEqual(DEFAULT_USER_SETTINGS);
     });
 
     it('leaves settings a user already saved alone', async () => {
@@ -152,6 +152,49 @@ describe('default settings', () => {
       await prisma.$executeRawUnsafe(backfill);
 
       expect(await storedSettings()).toEqual(CUSTOM_SETTINGS);
+    });
+  });
+
+  describe('currency_default_eur migration', () => {
+    const migration = readFileSync(
+      join(
+        __dirname,
+        '../../../apps/api/prisma/migrations/20260928090000_currency_default_eur/migration.sql'
+      ),
+      'utf8'
+    );
+    // One statement per call: a prepared statement can't hold several.
+    const run = async () => {
+      for (const statement of migration.split(';')) {
+        if (statement.replace(/--.*$/gm, '').trim()) {
+          await prisma.$executeRawUnsafe(statement);
+        }
+      }
+    };
+
+    it('gives settings stored before `currencies` the list they had', async () => {
+      await prisma.userSettings.update({
+        where: { userId: user.id },
+        data: { settings: { theme: 'dark', currency: 'HUF' } },
+      });
+
+      await run();
+
+      await expect(getSettings()).resolves.toMatchObject({
+        theme: 'dark',
+        currency: 'HUF',
+        currencies: ['RSD', 'EUR', 'HUF'],
+      });
+    });
+
+    it('leaves a list the user already has alone', async () => {
+      await addCurrency('GBP');
+
+      await run();
+
+      expect(await storedSettings()).toMatchObject({
+        currencies: ['EUR', 'GBP'],
+      });
     });
   });
 });
@@ -215,9 +258,9 @@ describe('PATCH /settings', () => {
   it('changes only the given keys', async () => {
     await putSettings(CUSTOM);
 
-    await expect(patchSettings({ currency: 'HUF' })).resolves.toEqual({
+    await expect(patchSettings({ theme: 'light' })).resolves.toEqual({
       ...CUSTOM_SETTINGS,
-      currency: 'HUF',
+      theme: 'light',
     });
   });
 
@@ -315,7 +358,7 @@ describe('DELETE /settings', () => {
 
     expect(settings).toEqual({
       ...DEFAULT_USER_SETTINGS,
-      currencies: ['RSD', 'EUR', 'HUF', 'GBP'],
+      currencies: ['EUR', 'GBP'],
     });
   });
 
@@ -394,9 +437,9 @@ describe('POST /settings/currencies', () => {
   it('appends the currency and stores it', async () => {
     const settings = await addCurrency('GBP');
 
-    expect(settings.currencies).toEqual(['RSD', 'EUR', 'HUF', 'GBP']);
+    expect(settings.currencies).toEqual(['EUR', 'GBP']);
     expect(await storedSettings()).toMatchObject({
-      currencies: ['RSD', 'EUR', 'HUF', 'GBP'],
+      currencies: ['EUR', 'GBP'],
     });
   });
 
@@ -415,21 +458,29 @@ describe('POST /settings/currencies', () => {
 });
 
 describe('DELETE /settings/currencies/:code', () => {
+  // EUR, the default, plus two more to remove.
+  const ENABLED = ['EUR', 'RSD', 'HUF'];
+
+  beforeEach(async () => {
+    await addCurrency('RSD');
+    await addCurrency('HUF');
+  });
+
   it('drops a currency without transactions', async () => {
     await expect(removeCurrency('HUF')).resolves.toEqual({
-      settings: { ...DEFAULT_USER_SETTINGS, currencies: ['RSD', 'EUR'] },
+      settings: { ...DEFAULT_USER_SETTINGS, currencies: ['EUR', 'RSD'] },
       convertedCount: 0,
     });
   });
 
-  it('converts the transactions in it to RSD at the day rates', async () => {
+  it('converts the transactions in it to EUR at the day rates', async () => {
     const category = await seedCategory(user.id);
     // Fake rates: 1 EUR = 100 RSD = 400 HUF.
-    const eur = await seedTransaction({
+    const rsd = await seedTransaction({
       userId: user.id,
       categoryId: category.id,
       amount: '12.34',
-      currency: 'EUR',
+      currency: 'RSD',
     });
     const huf = await seedTransaction({
       userId: user.id,
@@ -447,16 +498,16 @@ describe('DELETE /settings/currencies/:code', () => {
     expect(
       rows.map((row) => [row.id, row.amount.toFixed(2), row.currency])
     ).toEqual([
-      [eur.id, '12.34', 'EUR'],
-      // 555 / 4 = 138.75
-      [huf.id, '138.75', 'RSD'],
+      // 555 / 400 = 1.3875
+      [huf.id, '1.39', 'EUR'],
+      [rsd.id, '12.34', 'RSD'],
     ]);
   });
 
   it('rounds the converted amounts to cents', async () => {
     const category = await seedCategory(user.id);
-    // 0.01 HUF = 0.0025 RSD, 1.99 HUF = 0.4975 RSD
-    for (const amount of ['0.01', '1.99']) {
+    // 1.99 HUF = 0.004975 EUR, 2 HUF = 0.005 EUR
+    for (const amount of ['1.99', '2.00']) {
       await seedTransaction({
         userId: user.id,
         categoryId: category.id,
@@ -470,24 +521,24 @@ describe('DELETE /settings/currencies/:code', () => {
     const rows = await prisma.transaction.findMany({
       orderBy: { amount: 'asc' },
     });
-    expect(rows.map((row) => row.amount.toFixed(2))).toEqual(['0.00', '0.50']);
+    expect(rows.map((row) => row.amount.toFixed(2))).toEqual(['0.00', '0.01']);
   });
 
-  it('switches the display currency to RSD when it is the one removed', async () => {
-    await patchSettings({ currency: 'EUR' });
+  it('switches the display currency to EUR when it is the one removed', async () => {
+    await patchSettings({ currency: 'RSD' });
 
-    const { settings } = await removeCurrency('EUR');
+    const { settings } = await removeCurrency('RSD');
 
-    expect(settings.currency).toBe('RSD');
+    expect(settings.currency).toBe('EUR');
     await expect(getSettings()).resolves.toMatchObject({
-      currency: 'RSD',
-      currencies: ['RSD', 'HUF'],
+      currency: 'EUR',
+      currencies: ['EUR', 'HUF'],
     });
   });
 
   it('then refuses new transactions in it', async () => {
     const category = await seedCategory(user.id);
-    await removeCurrency('EUR');
+    await removeCurrency('RSD');
 
     await expectStatus(
       server()
@@ -495,7 +546,7 @@ describe('DELETE /settings/currencies/:code', () => {
         .set(...bearer(user))
         .send({
           amount: 1,
-          currency: 'EUR',
+          currency: 'RSD',
           type: 'EXPENSE',
           date: '2026-09-10',
           categoryId: category.id,
@@ -505,13 +556,16 @@ describe('DELETE /settings/currencies/:code', () => {
   });
 
   it.each([
-    ['RSD', 400],
+    ['EUR', 400],
     ['XYZ', 400],
     ['GBP', 404],
   ])('answers %s with %i and changes nothing', async (code, status) => {
     await removeCurrency(code, status);
 
-    expect(await storedSettings()).toEqual(DEFAULT_USER_SETTINGS);
+    expect(await storedSettings()).toEqual({
+      ...DEFAULT_USER_SETTINGS,
+      currencies: ENABLED,
+    });
   });
 
   it('shows the converted amounts in the list', async () => {
@@ -519,21 +573,21 @@ describe('DELETE /settings/currencies/:code', () => {
     await seedTransaction({
       userId: user.id,
       categoryId: category.id,
-      amount: '10.00',
-      currency: 'EUR',
+      amount: '1000.00',
+      currency: 'RSD',
     });
 
-    await removeCurrency('EUR');
+    await removeCurrency('RSD');
 
     const page = await expectJson<TransactionsPage>(
       server()
-        .get('/transactions?currency=RSD')
+        .get('/transactions?currency=EUR')
         .set(...bearer(user))
     );
     expect(page.items[0]).toMatchObject({
-      amount: '1000.00',
-      currency: 'RSD',
-      convertedAmount: '1000.00',
+      amount: '10.00',
+      currency: 'EUR',
+      convertedAmount: '10.00',
     });
     expect(page.ratesDate).toBeNull();
   });

@@ -40,14 +40,14 @@ describe('useCurrencyStore', () => {
     });
   });
 
-  it('falls back to RSD for an unknown stored value', async () => {
+  it('falls back to EUR for an unknown stored value', async () => {
     // Set first: the persist middleware writes every state change to storage.
-    useCurrencyStore.setState({ currency: 'EUR' });
+    useCurrencyStore.setState({ currency: 'RSD' });
     stored('XYZ');
 
     await useCurrencyStore.persist.rehydrate();
 
-    expect(useCurrencyStore.getState().currency).toBe('RSD');
+    expect(useCurrencyStore.getState().currency).toBe('EUR');
   });
 
   it('survives a session change', () => {

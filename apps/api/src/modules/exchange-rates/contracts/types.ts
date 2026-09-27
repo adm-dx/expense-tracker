@@ -3,7 +3,8 @@ import type { Prisma } from '../../../generated/prisma/client';
 
 /**
  * One `base` unit costs `rates.get(code)` of each currency. Always has the
- * base and RSD; any other code the provider didn't publish is missing.
+ * base (EUR, also the default currency); any other code the provider didn't
+ * publish is missing.
  */
 export interface ExchangeRatesSnapshot {
   base: Currency;

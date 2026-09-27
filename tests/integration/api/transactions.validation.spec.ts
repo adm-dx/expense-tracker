@@ -8,6 +8,7 @@ import type {
 import {
   bearer,
   createTestApp,
+  enableCurrencies,
   registerUser,
   request,
   TestUser,
@@ -29,6 +30,8 @@ beforeAll(async () => {
   // Registration hashes a password over HTTP; once per file is enough, since
   // these tests only ever add transactions.
   user = await registerUser(app);
+  // A new user has only EUR; these tests write in RSD and HUF too.
+  await enableCurrencies(app, user, ['RSD', 'HUF']);
   const categories = await expectJson<Category[]>(
     request(app.getHttpServer())
       .get('/categories')
@@ -118,7 +121,7 @@ describe('GET /transactions query validation', () => {
       total: 0,
       page: 1,
       pageSize: 10,
-      currency: 'RSD',
+      currency: 'EUR',
       ratesDate: null,
     });
   });
@@ -302,6 +305,12 @@ describe('POST /transactions body validation', () => {
       await create({ ...validBody(), currency }),
       'currency must be one of'
     );
+  });
+
+  it('rejects a currency the user has not enabled', async () => {
+    const response = await create({ ...validBody(), currency: 'USD' });
+
+    expect(response.status).toBe(400);
   });
 
   it.each(['EUR', 'HUF'])('stores currency=%s as sent', async (currency) => {

@@ -29,7 +29,8 @@ interface SettingsState {
   /** Enables a currency; not optimistic. */
   addCurrency: (code: Currency) => Promise<UserSettings>;
   /**
-   * Disables a currency; the server converts its transactions to RSD first.
+   * Disables a currency; the server first converts its transactions to the
+   * default currency.
    * Not optimistic: the caller reloads the transactions afterwards.
    */
   removeCurrency: (code: Currency) => Promise<RemoveCurrencyResult>;

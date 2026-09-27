@@ -20,7 +20,7 @@ export const settingsApi = {
     httpClient.post<UserSettings>('/settings/currencies', {
       code,
     } satisfies AddCurrencyRequest),
-  /** Converts the currency's transactions to RSD, then disables it. */
+  /** Converts the currency's transactions to the default one, then disables it. */
   removeCurrency: (code: Currency) =>
     httpClient.delete<RemoveCurrencyResult>(`/settings/currencies/${code}`),
 };

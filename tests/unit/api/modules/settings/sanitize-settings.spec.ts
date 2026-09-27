@@ -43,24 +43,25 @@ describe('sanitizeSettings', () => {
     ).toEqual({ ...DEFAULT_USER_SETTINGS, colorScheme: 'violet' });
   });
 
-  it('reads a missing currency list as the default one', () => {
+  it('reads a missing currency list as the default one, EUR alone', () => {
     expect(sanitizeSettings({ currency: 'HUF' })).toEqual({
       ...DEFAULT_USER_SETTINGS,
-      currency: 'HUF',
+      currency: 'EUR',
+      currencies: ['EUR'],
     });
   });
 
-  it('drops unknown and repeated codes and puts RSD back first', () => {
+  it('drops unknown and repeated codes and puts EUR back first', () => {
     expect(
-      sanitizeSettings({ currencies: ['EUR', 'XYZ', 'EUR', 42, 'GBP'] })
+      sanitizeSettings({ currencies: ['RSD', 'XYZ', 'RSD', 42, 'GBP'] })
         .currencies
-    ).toEqual(['RSD', 'EUR', 'GBP']);
+    ).toEqual(['EUR', 'RSD', 'GBP']);
   });
 
-  it('shows RSD when the display currency is not enabled', () => {
+  it('shows EUR when the display currency is not enabled', () => {
     expect(
       sanitizeSettings({ currency: 'GBP', currencies: ['RSD', 'EUR'] }).currency
-    ).toBe('RSD');
+    ).toBe('EUR');
   });
 
   it('drops keys it does not know', () => {

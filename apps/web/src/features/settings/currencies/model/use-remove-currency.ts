@@ -11,7 +11,7 @@ export function useRemoveCurrency(options: { onSuccess?: () => void }) {
   const removeCurrency = useSettingsStore((state) => state.removeCurrency);
   const [isPending, setIsPending] = useState(false);
 
-  /** Disables the currency; the server converts its transactions to RSD. */
+  /** Disables the currency; the server converts its transactions to the default one. */
   async function remove(code: Currency) {
     setIsPending(true);
     try {

@@ -12,7 +12,7 @@ import { ExchangeRatesProvider } from './exchange-rates.provider';
 export const DEFAULT_EXCHANGE_RATES_URL = 'https://open.er-api.com/v6';
 const BASE: Currency = 'EUR';
 // Without these nothing converts: every other code is optional.
-const REQUIRED: readonly Currency[] = [BASE, DEFAULT_CURRENCY];
+const REQUIRED: readonly Currency[] = [...new Set([BASE, DEFAULT_CURRENCY])];
 const TIMEOUT_MS = 5000;
 
 interface OpenErApiResponse {

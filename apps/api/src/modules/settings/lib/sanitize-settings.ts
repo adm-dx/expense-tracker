@@ -60,7 +60,8 @@ function readLocation(value: unknown): LocationSetting | undefined {
  * its default, so an old document never breaks the response.
  */
 /**
- * Known codes in their stored order, without repeats, always with RSD (first
+ * Known codes in their stored order, without repeats, always with the
+ * default currency (first
  * if it had to be added back). Not an array at all: the default list.
  */
 function readCurrencies(value: unknown): Currency[] {

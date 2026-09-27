@@ -66,7 +66,7 @@ export class SettingsController {
     return this.settingsService.addCurrency(user.sub, dto.code);
   }
 
-  /** Disables a currency and converts its transactions to RSD. */
+  /** Disables a currency and converts its transactions to the default one. */
   @Delete('currencies/:code')
   removeCurrency(
     @CurrentUser() user: RequestUser,

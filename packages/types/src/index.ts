@@ -165,10 +165,10 @@ export const CURRENCY_DETAILS: Record<Currency, CurrencyDetails> = {
 };
 
 /** Always enabled: the display fallback, and where a removed currency's transactions go. */
-export const DEFAULT_CURRENCY: Currency & 'RSD' = 'RSD';
+export const DEFAULT_CURRENCY: Currency & 'EUR' = 'EUR';
 
 /** The currencies a new user has enabled. */
-export const DEFAULT_CURRENCIES: readonly Currency[] = ['RSD', 'EUR', 'HUF'];
+export const DEFAULT_CURRENCIES: readonly Currency[] = [DEFAULT_CURRENCY];
 
 export interface Transaction {
   id: string;
@@ -228,7 +228,7 @@ export type TransactionPageSize = (typeof TRANSACTION_PAGE_SIZES)[number];
 export interface ListTransactionsParams extends TransactionFilters {
   page?: number;
   pageSize?: TransactionPageSize;
-  /** Display currency for `convertedAmount`; defaults to RSD. */
+  /** Display currency for `convertedAmount`; defaults to EUR. */
   currency?: Currency;
 }
 
@@ -248,7 +248,7 @@ export interface SummaryParams {
   /** ISO 8601; both bounds are inclusive. */
   dateFrom?: string;
   dateTo?: string;
-  /** Currency of the totals; defaults to RSD. */
+  /** Currency of the totals; defaults to EUR. */
   currency?: Currency;
 }
 
@@ -336,7 +336,7 @@ export interface UserSettings {
   colorScheme: ColorScheme;
   /** Amounts are shown in it; new transactions start in it. One of `currencies`. */
   currency: Currency;
-  /** The currencies the user has enabled; always includes RSD. */
+  /** The currencies the user has enabled; always includes `DEFAULT_CURRENCY`. */
   currencies: Currency[];
   location: LocationSetting;
 }
@@ -376,7 +376,7 @@ export interface AddCurrencyRequest {
 /** `DELETE /settings/currencies/:code` */
 export interface RemoveCurrencyResult {
   settings: UserSettings;
-  /** How many transactions were converted to RSD. */
+  /** How many transactions were converted to `DEFAULT_CURRENCY`. */
   convertedCount: number;
 }
 

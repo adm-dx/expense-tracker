@@ -53,8 +53,11 @@ const RATES: ExchangeRatesSnapshot = {
   ]),
 };
 
-// RSD, EUR and HUF are enabled.
-const SETTINGS: UserSettings = DEFAULT_USER_SETTINGS;
+// The defaults plus RSD and HUF, the currencies these tests use.
+const SETTINGS: UserSettings = {
+  ...DEFAULT_USER_SETTINGS,
+  currencies: ['EUR', 'RSD', 'HUF'],
+};
 
 describe('TransactionsService', () => {
   let repository: jest.Mocked<TransactionsRepository>;
@@ -128,7 +131,7 @@ describe('TransactionsService', () => {
         total: 0,
         page: 1,
         pageSize: 10,
-        currency: 'RSD',
+        currency: 'EUR',
         ratesDate: null,
       });
     });
@@ -478,7 +481,7 @@ describe('TransactionsService', () => {
         totalExpense: '0.00',
         balance: '0.00',
         byCategory: [],
-        currency: 'RSD',
+        currency: 'EUR',
         ratesDate: null,
       });
       expect(queryBus.execute).not.toHaveBeenCalled();
@@ -511,7 +514,11 @@ describe('TransactionsService', () => {
         makeCategory({ id: 'cat-3', name: 'Salary' }),
       ] as never);
 
-      const result = await service.summary('user-1', { month: 9, year: 2026 });
+      const result = await service.summary('user-1', {
+        month: 9,
+        year: 2026,
+        currency: 'RSD',
+      });
 
       expect(result.totalIncome).toBe('1000.00');
       expect(result.totalExpense).toBe('0.30');
@@ -568,7 +575,7 @@ describe('TransactionsService', () => {
         total: 3,
       } as never);
 
-      const result = await service.list('user-1', {});
+      const result = await service.list('user-1', { currency: 'RSD' });
 
       expect(queryBus.execute).toHaveBeenCalledWith(
         expect.any(GetExchangeRatesQuery)

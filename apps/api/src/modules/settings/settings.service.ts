@@ -101,8 +101,9 @@ export class SettingsService {
   }
 
   /**
-   * Converts the currency's transactions to RSD at today's rates, then
-   * disables it; the display currency falls back to RSD if it was this one.
+   * Converts the currency's transactions to the default currency (EUR) at
+   * today's rates, then disables it; the display currency falls back to the
+   * default one if it was this one.
    * Converting first means a rates outage (503) leaves everything as it was.
    */
   async removeCurrency(

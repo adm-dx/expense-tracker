@@ -1,6 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { DEFAULT_USER_SETTINGS } from '@expense-tracker/types';
+import {
+  DEFAULT_USER_SETTINGS,
+  type UserSettings,
+} from '@expense-tracker/types';
 import { useCurrencyStore } from '@web/entities/currency/model/store';
 import { useSettingsStore } from '@web/entities/settings';
 import { useExchangeRatesStore } from '@web/entities/currency/model/rates-store';
@@ -20,6 +23,13 @@ jest.mock('@web/shared/api/settings-api', () => ({
   settingsApi: { get: jest.fn(), update: jest.fn() },
 }));
 
+// A user who shows amounts in RSD and has two more currencies.
+const SAVED: UserSettings = {
+  ...DEFAULT_USER_SETTINGS,
+  currency: 'RSD',
+  currencies: ['RSD', 'EUR', 'HUF'],
+};
+
 const updateSettings = settingsApi.update as jest.MockedFunction<
   typeof settingsApi.update
 >;
@@ -38,11 +48,11 @@ beforeEach(() => {
   });
   updateSettings.mockReset();
   updateSettings.mockImplementation((patch) =>
-    Promise.resolve({ ...DEFAULT_USER_SETTINGS, ...patch })
+    Promise.resolve({ ...SAVED, ...patch })
   );
   useSettingsStore.getState().reset();
   useSettingsStore.setState({
-    settings: { ...DEFAULT_USER_SETTINGS },
+    settings: { ...SAVED },
     status: 'success',
   });
   useCurrencyStore.setState({ currency: 'RSD', hasHydrated: true });

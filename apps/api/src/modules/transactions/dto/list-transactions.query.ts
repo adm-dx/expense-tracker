@@ -46,7 +46,7 @@ export class ListTransactionsQuery {
   @IsIn(TRANSACTION_PAGE_SIZES)
   pageSize?: number;
 
-  /** Display currency for `convertedAmount`; defaults to RSD. */
+  /** Display currency for `convertedAmount`; defaults to EUR. */
   @IsOptional()
   @IsIn(CURRENCIES)
   currency?: Currency;

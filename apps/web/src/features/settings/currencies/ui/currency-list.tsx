@@ -28,7 +28,7 @@ interface CurrencyListProps {
   value: Currency[];
 }
 
-/** The enabled currencies, each removable but RSD, and a picker to add more. */
+/** The enabled currencies, each removable but the default one, and a picker to add more. */
 export function CurrencyList({ value }: CurrencyListProps) {
   const addCurrency = useSettingsStore((state) => state.addCurrency);
   const [removing, setRemoving] = useState<Currency | null>(null);

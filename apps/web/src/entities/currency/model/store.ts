@@ -31,7 +31,7 @@ export const useCurrencyStore = create<CurrencyState>()(
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       partialize: (state) => ({ currency: state.currency }),
-      // Anything stored by hand or by an older version falls back to RSD.
+      // Anything stored by hand or by an older version falls back to the default.
       merge: (persisted, current) => {
         const stored = (persisted as { currency?: unknown } | undefined)
           ?.currency;

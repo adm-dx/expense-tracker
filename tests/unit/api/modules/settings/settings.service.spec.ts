@@ -19,8 +19,8 @@ import { ReplaceSettingsDto } from '@api/modules/settings/dto/replace-settings.d
 const SAVED: UserSettings = {
   theme: 'dark',
   colorScheme: 'blue',
-  currency: 'EUR',
-  currencies: ['RSD', 'EUR', 'USD'],
+  currency: 'RSD',
+  currencies: ['EUR', 'RSD', 'USD'],
   location: { mode: 'manual', name: 'Novi Sad, RS', lat: 45.25, lon: 19.84 },
 };
 
@@ -98,10 +98,10 @@ describe('SettingsService', () => {
 
       const result = await service.update(
         'user-1',
-        updateDto({ currency: 'HUF' })
+        updateDto({ theme: 'light' })
       );
 
-      expect(result).toEqual({ ...DEFAULT_USER_SETTINGS, currency: 'HUF' });
+      expect(result).toEqual({ ...DEFAULT_USER_SETTINGS, theme: 'light' });
     });
 
     it('replaces the location as a whole', async () => {
@@ -220,10 +220,10 @@ describe('SettingsService', () => {
 
       const result = await service.addCurrency('user-1', 'GBP');
 
-      expect(result.currencies).toEqual(['RSD', 'EUR', 'USD', 'GBP']);
+      expect(result.currencies).toEqual(['EUR', 'RSD', 'USD', 'GBP']);
       expect(repository.upsert).toHaveBeenCalledWith('user-1', {
         ...SAVED,
-        currencies: ['RSD', 'EUR', 'USD', 'GBP'],
+        currencies: ['EUR', 'RSD', 'USD', 'GBP'],
       });
     });
 
@@ -238,28 +238,28 @@ describe('SettingsService', () => {
   });
 
   describe('removeCurrency', () => {
-    it('converts the transactions to RSD, then drops the currency', async () => {
+    it('converts the transactions to EUR, then drops the currency', async () => {
       repository.findByUser.mockResolvedValue(makeRow(SAVED));
       commandBus.execute.mockResolvedValue({ converted: 3 });
 
       const result = await service.removeCurrency('user-1', 'USD');
 
       expect(commandBus.execute).toHaveBeenCalledWith(
-        new ConvertTransactionsCurrencyCommand('user-1', 'USD', 'RSD')
+        new ConvertTransactionsCurrencyCommand('user-1', 'USD', 'EUR')
       );
       expect(result).toEqual({
-        settings: { ...SAVED, currencies: ['RSD', 'EUR'] },
+        settings: { ...SAVED, currencies: ['EUR', 'RSD'] },
         convertedCount: 3,
       });
     });
 
-    it('switches the display currency to RSD when it is the one removed', async () => {
+    it('switches the display currency to EUR when it is the one removed', async () => {
       repository.findByUser.mockResolvedValue(makeRow(SAVED));
 
-      const { settings } = await service.removeCurrency('user-1', 'EUR');
+      const { settings } = await service.removeCurrency('user-1', 'RSD');
 
-      expect(settings.currency).toBe('RSD');
-      expect(settings.currencies).toEqual(['RSD', 'USD']);
+      expect(settings.currency).toBe('EUR');
+      expect(settings.currencies).toEqual(['EUR', 'USD']);
     });
 
     it('keeps the currency when the conversion fails', async () => {
@@ -272,9 +272,9 @@ describe('SettingsService', () => {
       expect(repository.upsert).not.toHaveBeenCalled();
     });
 
-    it('refuses to remove RSD', async () => {
+    it('refuses to remove EUR, the default currency', async () => {
       await expect(
-        service.removeCurrency('user-1', 'RSD')
+        service.removeCurrency('user-1', 'EUR')
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(commandBus.execute).not.toHaveBeenCalled();
     });

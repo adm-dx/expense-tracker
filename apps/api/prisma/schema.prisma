@@ -82,7 +82,7 @@ model Transaction {
   amount      Decimal         @db.Decimal(12, 2)
   // The ISO code `amount` was entered in (one of `CURRENCIES` in
   // @expense-tracker/types); conversion happens on read.
-  currency    String          @default("RSD")
+  currency    String          @default("EUR")
   type        TransactionType
   description String?
   date        DateTime

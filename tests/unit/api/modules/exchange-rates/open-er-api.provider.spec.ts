@@ -75,24 +75,24 @@ describe('OpenErApiProvider', () => {
     );
   });
 
-  it('rejects a response without RSD', async () => {
+  it('rejects a response without EUR, the base', async () => {
     fetchMock.mockResolvedValue(
-      jsonResponse({ ...SUCCESS, rates: { EUR: 1, HUF: 364.89 } })
+      jsonResponse({ ...SUCCESS, rates: { RSD: 117.5, HUF: 364.89 } })
     );
 
     await expect(makeProvider().fetchLatest()).rejects.toThrow(
-      'no rate for RSD'
+      'no rate for EUR'
     );
   });
 
   it('leaves out any other currency the response lacks', async () => {
     fetchMock.mockResolvedValue(
-      jsonResponse({ ...SUCCESS, rates: { EUR: 1, RSD: 117.5 } })
+      jsonResponse({ ...SUCCESS, rates: { EUR: 1 } })
     );
 
     const snapshot = await makeProvider().fetchLatest();
 
-    expect([...snapshot.rates.keys()].sort()).toEqual(['EUR', 'RSD']);
+    expect([...snapshot.rates.keys()]).toEqual(['EUR']);
   });
 
   it('rejects a non-2xx response', async () => {

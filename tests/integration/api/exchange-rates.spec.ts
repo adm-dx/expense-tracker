@@ -9,6 +9,7 @@ import {
 import {
   bearer,
   createTestApp,
+  enableCurrencies,
   registerUser,
   request,
   TestUser,
@@ -35,6 +36,8 @@ beforeAll(async () => {
   app = await createTestApp(provider);
   await resetDatabase();
   user = await registerUser(app);
+  // A new user has only EUR; these tests convert between all three.
+  await enableCurrencies(app, user, ['RSD', 'HUF']);
   const categories = await expectJson<Category[]>(
     request(app.getHttpServer())
       .get('/categories')

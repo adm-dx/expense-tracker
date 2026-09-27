@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import {
   bearer,
   createTestApp,
+  enableCurrencies,
   registerUser,
   request,
   TestUser,
@@ -35,7 +36,7 @@ beforeEach(async () => {
     .set(...bearer(alice))
     .send({
       amount: 250,
-      currency: 'RSD',
+      currency: 'EUR',
       type: 'EXPENSE',
       date: '2026-09-10T00:00:00.000Z',
       categoryId: aliceCategoryId,
@@ -164,7 +165,7 @@ describe("one user can't reach another user's data", () => {
       .set(...bearer(bob))
       .send({
         amount: 1,
-        currency: 'RSD',
+        currency: 'EUR',
         type: 'EXPENSE',
         date: '2026-09-10T00:00:00.000Z',
         categoryId: bobCategoryId,
@@ -254,19 +255,21 @@ describe("one user can't reach another user's data", () => {
       .expect(200);
     expect(response.body).toEqual({
       ...aliceSettings,
-      currencies: ['RSD', 'EUR', 'HUF'],
+      currencies: ['EUR'],
     });
   });
 
   it("doesn't convert someone else's transactions when removing a currency", async () => {
+    await enableCurrencies(app, alice, ['RSD']);
+    await enableCurrencies(app, bob, ['RSD']);
     await server()
       .patch(`/transactions/${aliceTransactionId}`)
       .set(...bearer(alice))
-      .send({ currency: 'EUR' })
+      .send({ currency: 'RSD' })
       .expect(200);
 
     const response = await server()
-      .delete('/settings/currencies/EUR')
+      .delete('/settings/currencies/RSD')
       .set(...bearer(bob))
       .expect(200);
 
@@ -275,6 +278,6 @@ describe("one user can't reach another user's data", () => {
       await prisma.transaction.findUniqueOrThrow({
         where: { id: aliceTransactionId },
       })
-    ).toMatchObject({ currency: 'EUR' });
+    ).toMatchObject({ currency: 'RSD' });
   });
 });
