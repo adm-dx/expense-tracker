@@ -392,3 +392,109 @@ describe('POST /auth/logout', () => {
     ).toBe(200);
   });
 });
+
+describe('POST /auth/change-password', () => {
+  const NEW_PASSWORD = 'brand-new-secret';
+
+  const changePassword = (user: TestUser, body: Record<string, unknown>) =>
+    server()
+      .post('/auth/change-password')
+      .set(...bearer(user))
+      .send(body);
+
+  it('requires a token', async () => {
+    await post('/auth/change-password', {
+      currentPassword: DEFAULT_PASSWORD,
+      newPassword: NEW_PASSWORD,
+    }).expect(401);
+  });
+
+  it('changes the password: the new one logs in, the old one does not', async () => {
+    const user = await registerUser(app);
+
+    await changePassword(user, {
+      currentPassword: user.password,
+      newPassword: NEW_PASSWORD,
+    }).expect(200);
+
+    await post('/auth/login', {
+      email: user.email,
+      password: user.password,
+    }).expect(401);
+    await post('/auth/login', {
+      email: user.email,
+      password: NEW_PASSWORD,
+    }).expect(200);
+    await waitForLastLogin(user.id);
+  });
+
+  it('signs out every other session but keeps the caller signed in', async () => {
+    const user = await registerUser(app);
+    const otherDevice = await post('/auth/login', {
+      email: user.email,
+      password: user.password,
+    }).expect(200);
+    await waitForLastLogin(user.id);
+
+    const response = await changePassword(user, {
+      currentPassword: user.password,
+      newPassword: NEW_PASSWORD,
+    }).expect(200);
+
+    await post('/auth/refresh', { refreshToken: user.refreshToken }).expect(401);
+    await post('/auth/refresh', {
+      refreshToken: otherDevice.body.refreshToken,
+    }).expect(401);
+    await server()
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${response.body.accessToken}`)
+      .expect(200);
+    await post('/auth/refresh', {
+      refreshToken: response.body.refreshToken,
+    }).expect(200);
+  });
+
+  it('answers 400, not 401, for a wrong current password and changes nothing', async () => {
+    const user = await registerUser(app);
+    const before = await prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+    });
+
+    const response = await changePassword(user, {
+      currentPassword: 'not-my-password',
+      newPassword: NEW_PASSWORD,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe('Current password is incorrect');
+    const after = await prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+    });
+    expect(after.passwordHash).toBe(before.passwordHash);
+    await post('/auth/refresh', { refreshToken: user.refreshToken }).expect(200);
+  });
+
+  it('refuses to reuse the current password', async () => {
+    const user = await registerUser(app);
+
+    await changePassword(user, {
+      currentPassword: user.password,
+      newPassword: user.password,
+    }).expect(400);
+  });
+
+  it.each([
+    ['a new password that is too short', { newPassword: 'short' }],
+    ['a new password that is too long', { newPassword: 'x'.repeat(73) }],
+    ['no current password', { currentPassword: '' }],
+    ['an unknown field', { confirmPassword: NEW_PASSWORD }],
+  ])('rejects %s with 400', async (_label, override) => {
+    const user = await registerUser(app);
+
+    await changePassword(user, {
+      currentPassword: user.password,
+      newPassword: NEW_PASSWORD,
+      ...override,
+    }).expect(400);
+  });
+});

@@ -1,17 +1,28 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { DEFAULT_USER_SETTINGS } from '@expense-tracker/types';
 import { useCurrencyStore } from '@web/entities/currency/model/store';
+import { useSettingsStore } from '@web/entities/settings';
 import { useExchangeRatesStore } from '@web/entities/currency/model/rates-store';
 import { useTransactionsStore } from '@web/entities/transaction/model/store';
 import {
   CurrencySelect,
   DisplayCurrencySync,
 } from '@web/features/currency/select';
+import { SettingsSync } from '@web/features/settings/sync';
 import { exchangeRatesApi } from '@web/shared/api/exchange-rates-api';
+import { settingsApi } from '@web/shared/api/settings-api';
 
 jest.mock('@web/shared/api/exchange-rates-api', () => ({
   exchangeRatesApi: { get: jest.fn() },
 }));
+jest.mock('@web/shared/api/settings-api', () => ({
+  settingsApi: { get: jest.fn(), update: jest.fn() },
+}));
+
+const updateSettings = settingsApi.update as jest.MockedFunction<
+  typeof settingsApi.update
+>;
 
 const getRates = exchangeRatesApi.get as jest.MockedFunction<
   typeof exchangeRatesApi.get
@@ -24,6 +35,15 @@ beforeEach(() => {
     base: 'EUR',
     date: '2026-09-26T00:02:32.000Z',
     rates: { EUR: '1', RSD: '117.5', HUF: '400' },
+  });
+  updateSettings.mockReset();
+  updateSettings.mockImplementation((patch) =>
+    Promise.resolve({ ...DEFAULT_USER_SETTINGS, ...patch })
+  );
+  useSettingsStore.getState().reset();
+  useSettingsStore.setState({
+    settings: { ...DEFAULT_USER_SETTINGS },
+    status: 'success',
   });
   useCurrencyStore.setState({ currency: 'RSD', hasHydrated: true });
   useExchangeRatesStore.getState().reset();
@@ -48,7 +68,7 @@ describe('CurrencySelect', () => {
     expect(screen.getByRole('button')).toBeDisabled();
   });
 
-  it('offers the three currencies and stores the choice', async () => {
+  it('offers the three currencies and saves the choice as the setting', async () => {
     const user = userEvent.setup();
     render(<CurrencySelect />);
 
@@ -63,7 +83,20 @@ describe('CurrencySelect', () => {
 
     await user.click(screen.getByRole('menuitemradio', { name: 'EUR' }));
 
-    expect(useCurrencyStore.getState().currency).toBe('EUR');
+    expect(updateSettings).toHaveBeenCalledWith({ currency: 'EUR' });
+    expect(useSettingsStore.getState().settings?.currency).toBe('EUR');
+  });
+
+  it('keeps the old currency when saving fails', async () => {
+    updateSettings.mockRejectedValue(new Error('down'));
+    const user = userEvent.setup();
+    render(<CurrencySelect />);
+
+    await user.click(screen.getByRole('button', { name: /Display currency/ }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'EUR' }));
+
+    await screen.findByRole('button', { name: 'Display currency: RSD' });
+    expect(useSettingsStore.getState().settings?.currency).toBe('RSD');
   });
 
   it('loads the rates on open and prices the others in the current currency', async () => {
@@ -92,7 +125,7 @@ describe('CurrencySelect', () => {
       await screen.findByText('Exchange rates are unavailable')
     ).toBeInTheDocument();
     await user.click(screen.getByRole('menuitemradio', { name: 'HUF' }));
-    expect(useCurrencyStore.getState().currency).toBe('HUF');
+    expect(updateSettings).toHaveBeenCalledWith({ currency: 'HUF' });
   });
 });
 
@@ -112,6 +145,7 @@ describe('DisplayCurrencySync', () => {
     const user = userEvent.setup();
     render(
       <>
+        <SettingsSync />
         <DisplayCurrencySync />
         <CurrencySelect />
       </>

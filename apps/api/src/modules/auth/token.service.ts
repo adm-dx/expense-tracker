@@ -110,6 +110,16 @@ export class TokenService {
     await this.refreshTokensRepository.revoke(record.id);
   }
 
+  /**
+   * Signs the user out everywhere: no refresh token of theirs works any more.
+   * The tokens are deleted, not revoked: another device refreshing with its
+   * old token would otherwise count as reuse of a revoked token and revoke
+   * the tokens issued afterwards too, signing out the caller as well.
+   */
+  async revokeAll(userId: string): Promise<void> {
+    await this.refreshTokensRepository.deleteAllForUser(userId);
+  }
+
   private signAccessToken(userId: string, email: string): Promise<string> {
     return this.jwtService.signAsync(
       { sub: userId, email },

@@ -3,6 +3,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import type { Place } from '@expense-tracker/types';
 import type { CurrentWeatherResult, WeatherReading } from './contracts';
 import { GeocodingProvider } from './providers/geocoding.provider';
 import { WeatherProvider } from './providers/weather.provider';
@@ -15,6 +16,8 @@ export const STALE_WEATHER_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 export const LOCATION_TTL_MS = 24 * 60 * 60 * 1000;
 /** A failed lookup is retried after this long, not on every request. */
 export const LOCATION_RETRY_MS = 30 * 60 * 1000;
+/** Search results for a place name; they change as rarely as the names. */
+export const PLACES_TTL_MS = LOCATION_TTL_MS;
 /** Per cache; the oldest entry is dropped beyond this. */
 export const MAX_CACHE_ENTRIES = 500;
 
@@ -57,6 +60,7 @@ export class WeatherService {
   private readonly logger = new Logger(WeatherService.name);
   private readonly weather = new BoundedCache<WeatherReading>();
   private readonly locations = new BoundedCache<string | null>();
+  private readonly places = new BoundedCache<Place[]>();
   private readonly inFlight = new Map<string, Promise<CurrentWeatherResult>>();
 
   constructor(
@@ -79,6 +83,25 @@ export class WeatherService {
       this.inFlight.set(key, pending);
     }
     return pending;
+  }
+
+  /**
+   * Towns and cities matching `query`, cached per normalized query: Nominatim
+   * asks for caching and allows one request a second for the whole app.
+   */
+  async searchPlaces(query: string): Promise<Place[]> {
+    const key = query.trim().replace(/\s+/g, ' ').toLowerCase();
+    const cached = this.places.get(key);
+    if (cached && Date.now() < cached.expiresAt) return cached.value;
+
+    try {
+      const places = await this.geocodingProvider.search(key);
+      this.places.set(key, places, PLACES_TTL_MS, Date.now());
+      return places;
+    } catch (error) {
+      this.logger.error(`Place search failed for "${key}": ${reason(error)}`);
+      throw new ServiceUnavailableException('Place search is unavailable');
+    }
   }
 
   private async load(

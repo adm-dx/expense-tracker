@@ -23,10 +23,24 @@ model User {
   categories    Category[]
   transactions  Transaction[]
   refreshTokens RefreshToken[]
+  settings      UserSettings?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@map("users")
+}
+
+// One row per user, created on the first save; no row means the defaults.
+// A JSON document so that new settings need no migration: the API validates
+// it on write and falls back to the default for any key it can't read.
+model UserSettings {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_settings")
 }
 
 model RefreshToken {

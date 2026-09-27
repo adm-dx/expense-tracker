@@ -225,4 +225,28 @@ describe("one user can't reach another user's data", () => {
       amount: '250.00',
     });
   });
+
+  it("can't change or reset someone else's settings", async () => {
+    const aliceSettings = {
+      theme: 'dark',
+      colorScheme: 'green',
+      currency: 'EUR',
+      location: { mode: 'manual', name: 'Novi Sad, RS', lat: 45.25, lon: 19.84 },
+    };
+    await server()
+      .put('/settings')
+      .set(...bearer(alice))
+      .send(aliceSettings)
+      .expect(200);
+
+    // Settings have no id in the URL: Bob can only ever reach his own.
+    await attempt('patch', '/settings', { theme: 'light' }).expect(200);
+    await attempt('delete', '/settings').expect(200);
+
+    const response = await server()
+      .get('/settings')
+      .set(...bearer(alice))
+      .expect(200);
+    expect(response.body).toEqual(aliceSettings);
+  });
 });

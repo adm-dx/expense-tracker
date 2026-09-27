@@ -144,4 +144,28 @@ describe('useWeatherStore', () => {
       status: 'idle',
     });
   });
+
+  it('loads the weather at a given place without asking the browser', async () => {
+    await useWeatherStore.getState().refresh({ lat: 45.25, lon: 19.84 });
+
+    expect(locate).not.toHaveBeenCalled();
+    expect(getWeather).toHaveBeenCalledWith({ lat: 45.25, lon: 19.84 });
+    expect(useWeatherStore.getState().status).toBe('success');
+  });
+
+  it('lets a request for another place replace the one in flight', async () => {
+    const stale = deferred<CurrentWeather>();
+    getWeather.mockReturnValueOnce(stale.promise);
+    const noviSad = { ...WEATHER, location: 'Novi Sad, RS' };
+    getWeather.mockResolvedValueOnce(noviSad);
+
+    const first = useWeatherStore.getState().refresh();
+    await Promise.resolve();
+    await useWeatherStore.getState().refresh({ lat: 45.25, lon: 19.84 });
+    stale.resolve(WEATHER);
+    await first;
+
+    expect(getWeather).toHaveBeenCalledTimes(2);
+    expect(useWeatherStore.getState().weather).toEqual(noviSad);
+  });
 });

@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   DEFAULT_GEOCODING_URL,
   GEOCODING_USER_AGENT,
+  MAX_SEARCH_RESULTS,
   MIN_REQUEST_INTERVAL_MS,
   NominatimProvider,
 } from '@api/modules/weather/providers/nominatim.provider';
@@ -133,5 +134,81 @@ describe('NominatimProvider', () => {
     await jest.advanceTimersByTimeAsync(MIN_REQUEST_INTERVAL_MS);
 
     await expect(next).resolves.toBe('Belgrade, RS');
+  });
+
+  describe('search', () => {
+    const result = (
+      lat: string,
+      lon: string,
+      address: Record<string, string> | undefined
+    ) => ({ lat, lon, address });
+
+    it('asks for settlements matching the query, in English', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse([result('44.8178', '20.4569', BELGRADE.address)])
+      );
+
+      const places = await makeProvider().search('belgrade');
+
+      const [url, init] = fetchMock.mock.calls[0]!;
+      const parsed = new URL(String(url));
+      expect(`${parsed.origin}${parsed.pathname}`).toBe(
+        `${DEFAULT_GEOCODING_URL}/search`
+      );
+      expect(Object.fromEntries(parsed.searchParams)).toEqual({
+        format: 'jsonv2',
+        q: 'belgrade',
+        featureType: 'settlement',
+        addressdetails: '1',
+        limit: String(MAX_SEARCH_RESULTS),
+        'accept-language': 'en',
+      });
+      expect(init?.headers).toEqual({ 'User-Agent': GEOCODING_USER_AGENT });
+      expect(places).toEqual([
+        { name: 'Belgrade, RS', lat: 44.8178, lon: 20.4569 },
+      ]);
+    });
+
+    it('skips results without a name or coordinates, and repeats', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse([
+          result('44.8178', '20.4569', BELGRADE.address),
+          result('44.80', '20.46', BELGRADE.address),
+          result('1', '2', undefined),
+          result('oops', '2', { town: 'Nowhere', country_code: 'rs' }),
+          result('45.7761', '-111.1766', {
+            town: 'Belgrade',
+            country: 'United States',
+            country_code: 'us',
+          }),
+        ])
+      );
+
+      await expect(makeProvider().search('belgrade')).resolves.toEqual([
+        { name: 'Belgrade, RS', lat: 44.8178, lon: 20.4569 },
+        { name: 'Belgrade, US', lat: 45.7761, lon: -111.1766 },
+      ]);
+    });
+
+    it('rejects a non-2xx response', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({}, 503));
+
+      await expect(makeProvider().search('x')).rejects.toThrow('HTTP 503');
+    });
+
+    it('shares the one-request-a-second queue with reverse lookups', async () => {
+      jest.useFakeTimers({ now: new Date('2026-09-26T10:00:00.000Z') });
+      fetchMock.mockImplementation(() => Promise.resolve(jsonResponse([])));
+      const provider = makeProvider();
+
+      await provider.reverse(0, 0).catch(() => undefined);
+      const search = provider.search('belgrade');
+      await jest.advanceTimersByTimeAsync(MIN_REQUEST_INTERVAL_MS - 1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(1);
+      await search;
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
   });
 });

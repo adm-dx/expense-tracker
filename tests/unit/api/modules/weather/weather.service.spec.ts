@@ -6,6 +6,7 @@ import {
   LOCATION_RETRY_MS,
   LOCATION_TTL_MS,
   MAX_CACHE_ENTRIES,
+  PLACES_TTL_MS,
   roundCoordinate,
   STALE_WEATHER_MAX_AGE_MS,
   WEATHER_TTL_MS,
@@ -21,9 +22,11 @@ function makeReading(temperature = 18.4): WeatherReading {
   };
 }
 
+const PLACES = [{ name: 'Belgrade, RS', lat: 44.8178, lon: 20.4569 }];
+
 describe('WeatherService', () => {
   let weatherProvider: { fetchCurrent: jest.Mock };
-  let geocodingProvider: { reverse: jest.Mock };
+  let geocodingProvider: { reverse: jest.Mock; search: jest.Mock };
   let service: WeatherService;
 
   beforeEach(() => {
@@ -33,6 +36,7 @@ describe('WeatherService', () => {
     };
     geocodingProvider = {
       reverse: jest.fn().mockResolvedValue('Belgrade, RS'),
+      search: jest.fn().mockResolvedValue(PLACES),
     };
     service = new WeatherService(
       weatherProvider as unknown as WeatherProvider,
@@ -161,6 +165,43 @@ describe('WeatherService', () => {
     await service.getCurrent(0, -30);
 
     expect(geocodingProvider.reverse).toHaveBeenCalledTimes(1);
+  });
+
+  describe('searchPlaces', () => {
+    it('asks the provider with the query normalized', async () => {
+      await expect(service.searchPlaces('  Novi   SAD ')).resolves.toEqual(
+        PLACES
+      );
+      expect(geocodingProvider.search).toHaveBeenCalledWith('novi sad');
+    });
+
+    it('caches results per normalized query for a day', async () => {
+      await service.searchPlaces('Belgrade');
+      await service.searchPlaces('belgrade ');
+      expect(geocodingProvider.search).toHaveBeenCalledTimes(1);
+
+      jest.setSystemTime(Date.now() + PLACES_TTL_MS);
+      await service.searchPlaces('belgrade');
+      expect(geocodingProvider.search).toHaveBeenCalledTimes(2);
+    });
+
+    it('caches an empty result too', async () => {
+      geocodingProvider.search.mockResolvedValue([]);
+
+      await service.searchPlaces('atlantis');
+      await service.searchPlaces('atlantis');
+
+      expect(geocodingProvider.search).toHaveBeenCalledTimes(1);
+    });
+
+    it('answers 503 when the provider fails, and retries next time', async () => {
+      geocodingProvider.search.mockRejectedValueOnce(new Error('HTTP 429'));
+
+      await expect(service.searchPlaces('belgrade')).rejects.toBeInstanceOf(
+        ServiceUnavailableException
+      );
+      await expect(service.searchPlaces('belgrade')).resolves.toEqual(PLACES);
+    });
   });
 
   it('drops the oldest place once the cache is full', async () => {

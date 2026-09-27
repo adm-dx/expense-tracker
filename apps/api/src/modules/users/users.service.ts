@@ -25,13 +25,16 @@ export class UsersService {
     const user = await this.usersRepository.findByEmail(
       this.normalizeEmail(email),
     );
-    if (!user) return null;
-    return {
-      id: user.id,
-      email: user.email,
-      passwordHash: user.passwordHash,
-      isActive: user.isActive,
-    };
+    return user ? this.toCredentials(user) : null;
+  }
+
+  async getCredentialsById(id: string): Promise<UserCredentials | null> {
+    const user = await this.usersRepository.findById(id);
+    return user ? this.toCredentials(user) : null;
+  }
+
+  async changePassword(id: string, passwordHash: string): Promise<void> {
+    await this.usersRepository.updatePasswordHash(id, passwordHash);
   }
 
   async create(data: {
@@ -70,6 +73,15 @@ export class UsersService {
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+    };
+  }
+
+  private toCredentials(user: User): UserCredentials {
+    return {
+      id: user.id,
+      email: user.email,
+      passwordHash: user.passwordHash,
+      isActive: user.isActive,
     };
   }
 

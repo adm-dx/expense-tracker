@@ -2,7 +2,10 @@ import type { CurrentWeather } from '@expense-tracker/types';
 import { create } from 'zustand';
 import { weatherApi } from '@/shared/api/weather-api';
 import { getErrorMessage } from '@/shared/lib/error';
-import { getApproximatePosition } from '@/shared/lib/geolocation';
+import {
+  getApproximatePosition,
+  type Coordinates,
+} from '@/shared/lib/geolocation';
 import { registerStoreReset } from '@/shared/lib/store-reset';
 
 /**
@@ -18,26 +21,35 @@ interface WeatherState {
   error: string | null;
   /** `Date.now()` of the last successful load. */
   updatedAt: number | null;
-  /** Locates the user and loads the weather there; no-op while loading. */
-  refresh: () => Promise<void>;
+  /**
+   * Loads the weather at `position`, or where the browser says the user is
+   * when it's omitted. A no-op while the same place is loading; a request for
+   * another place supersedes the one in flight.
+   */
+  refresh: (position?: Coordinates) => Promise<void>;
   reset: () => void;
 }
 
-// Drops responses from a previous session landing after a reset.
+// Drops responses from a previous session or a superseded place.
 let latestRequestId = 0;
+let loadingTarget: string | null = null;
 
 export const useWeatherStore = create<WeatherState>()((set, get) => ({
   weather: null,
   status: 'idle',
   error: null,
   updatedAt: null,
-  refresh: async () => {
-    if (get().status === 'loading') return;
+  refresh: async (fixedPosition) => {
+    const target = fixedPosition
+      ? `${fixedPosition.lat},${fixedPosition.lon}`
+      : 'browser';
+    if (get().status === 'loading' && loadingTarget === target) return;
     const requestId = ++latestRequestId;
+    loadingTarget = target;
     // The previous weather stays on screen until the new one arrives.
     set({ status: 'loading', error: null });
 
-    const position = await getApproximatePosition();
+    const position = fixedPosition ?? (await getApproximatePosition());
     if (requestId !== latestRequestId) return;
     if (!position) {
       // Access may have been revoked: don't keep showing the old place.
@@ -56,6 +68,7 @@ export const useWeatherStore = create<WeatherState>()((set, get) => ({
   },
   reset: () => {
     latestRequestId++;
+    loadingTarget = null;
     set({ weather: null, status: 'idle', error: null, updatedAt: null });
   },
 }));
