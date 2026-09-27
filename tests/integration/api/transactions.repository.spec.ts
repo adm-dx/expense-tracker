@@ -297,6 +297,18 @@ describe('sumByTypeAndCategory', () => {
     expect(rows.every((r) => r.categoryId === category.id)).toBe(true);
   });
 
+  it('counts the transactions behind each row', async () => {
+    const { user } = await seedSeptember();
+
+    const rows = await repository.sumByTypeAndCategory(user.id, SEPTEMBER);
+
+    // 0.10, 0.20 and 5.00 are expenses; 1000.00 is the only income.
+    expect(Object.fromEntries(rows.map((r) => [r.type, r.count]))).toEqual({
+      [TransactionType.EXPENSE]: 3,
+      [TransactionType.INCOME]: 1,
+    });
+  });
+
   it('returns one row per category', async () => {
     const { user } = await seedSeptember();
     const other = await seedCategory(user.id, 'Transport');

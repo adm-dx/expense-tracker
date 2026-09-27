@@ -494,18 +494,21 @@ describe('TransactionsService', () => {
           categoryId: 'cat-1',
           currency: 'RSD',
           amount: new Prisma.Decimal('0.10'),
+          count: 1,
         },
         {
           type: TransactionType.EXPENSE,
           categoryId: 'cat-2',
           currency: 'RSD',
           amount: new Prisma.Decimal('0.20'),
+          count: 1,
         },
         {
           type: TransactionType.INCOME,
           categoryId: 'cat-3',
           currency: 'RSD',
           amount: new Prisma.Decimal('1000.00'),
+          count: 1,
         },
       ]);
       repository.findCategoriesByIds.mockResolvedValue([
@@ -535,6 +538,7 @@ describe('TransactionsService', () => {
         icon: 'shopping-cart',
         type: TransactionType.INCOME,
         total: '1000.00',
+        count: 1,
       });
     });
   });
@@ -636,24 +640,28 @@ describe('TransactionsService', () => {
           categoryId: 'cat-1',
           currency: 'RSD',
           amount: new Prisma.Decimal('0.01'),
+          count: 2,
         },
         {
           type: TransactionType.EXPENSE,
           categoryId: 'cat-1',
           currency: 'HUF',
           amount: new Prisma.Decimal('0.01'),
+          count: 3,
         },
         {
           type: TransactionType.EXPENSE,
           categoryId: 'cat-2',
           currency: 'HUF',
           amount: new Prisma.Decimal('0.01'),
+          count: 1,
         },
         {
           type: TransactionType.INCOME,
           categoryId: 'cat-3',
           currency: 'RSD',
           amount: new Prisma.Decimal('2350.00'),
+          count: 1,
         },
       ]);
       repository.findCategoriesByIds.mockResolvedValue([
@@ -678,6 +686,8 @@ describe('TransactionsService', () => {
         ['cat-1', TransactionType.EXPENSE],
         ['cat-2', TransactionType.EXPENSE],
       ]);
+      // Counted per currency in SQL, added up per category here.
+      expect(result.byCategory.map((item) => item.count)).toEqual([1, 5, 1]);
     });
 
     it('sums converted amounts before rounding', async () => {
@@ -687,6 +697,7 @@ describe('TransactionsService', () => {
           categoryId,
           currency: 'RSD',
           amount: new Prisma.Decimal('0.60'),
+          count: 1,
         }))
       );
       repository.findCategoriesByIds.mockResolvedValue([] as never);
