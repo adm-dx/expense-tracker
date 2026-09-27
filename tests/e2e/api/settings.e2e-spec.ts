@@ -79,11 +79,11 @@ describe('user settings journey', () => {
         .send({ theme: 'dark', colorScheme: 'violet', currency: 'EUR' })
     );
 
-    expect(settings).toMatchObject({
+    expect(settings).toEqual({
+      ...DEFAULT_USER_SETTINGS,
       theme: 'dark',
       colorScheme: 'violet',
       currency: 'EUR',
-      location: { mode: 'auto' },
     });
   });
 

@@ -3,6 +3,10 @@ import type { UserSettings } from '@expense-tracker/types';
 import type { UserSettings as UserSettingsRow } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
+function toDocument(settings: UserSettings) {
+  return { ...settings, location: { ...settings.location } };
+}
+
 @Injectable()
 export class SettingsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -12,7 +16,7 @@ export class SettingsRepository {
   }
 
   upsert(userId: string, settings: UserSettings): Promise<UserSettingsRow> {
-    const document = { ...settings, location: { ...settings.location } };
+    const document = toDocument(settings);
     return this.prisma.userSettings.upsert({
       where: { userId },
       create: { userId, settings: document },
@@ -20,8 +24,11 @@ export class SettingsRepository {
     });
   }
 
-  /** A no-op when the user has never saved anything. */
-  async delete(userId: string): Promise<void> {
-    await this.prisma.userSettings.deleteMany({ where: { userId } });
+  /** Stores `settings` unless the user already has a row; never overwrites. */
+  async createIfMissing(userId: string, settings: UserSettings): Promise<void> {
+    await this.prisma.userSettings.createMany({
+      data: [{ userId, settings: toDocument(settings) }],
+      skipDuplicates: true,
+    });
   }
 }

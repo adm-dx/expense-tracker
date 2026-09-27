@@ -277,11 +277,20 @@ export interface UserSettings {
   location: LocationSetting;
 }
 
+/** Where the weather is shown for until the user picks something else. */
+export const DEFAULT_LOCATION: LocationSetting = {
+  mode: 'manual',
+  name: 'Belgrade, RS',
+  lat: 44.82,
+  lon: 20.46,
+};
+
+/** What every new user starts with, and what a reset goes back to. */
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   theme: 'system',
   colorScheme: 'slate',
   currency: DEFAULT_CURRENCY,
-  location: { mode: 'auto' },
+  location: DEFAULT_LOCATION,
 };
 
 /** `PATCH /settings`: top-level keys are merged, `location` is replaced. */

@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { INestApplication } from '@nestjs/common';
 import {
   DEFAULT_USER_SETTINGS,
@@ -71,6 +73,10 @@ function storedDocument(userId = user.id) {
   return prisma.userSettings.findUnique({ where: { userId } });
 }
 
+async function storedSettings(userId = user.id) {
+  return (await storedDocument(userId))?.settings;
+}
+
 describe('/settings', () => {
   it.each(['get', 'put', 'patch', 'delete'] as const)(
     '%s requires a token',
@@ -80,16 +86,61 @@ describe('/settings', () => {
   );
 });
 
-describe('GET /settings', () => {
-  it('returns the defaults to a new user without storing a row', async () => {
+describe('default settings', () => {
+  it('are stored for every new user on registration', async () => {
+    expect(await storedSettings()).toEqual(DEFAULT_USER_SETTINGS);
     await expect(getSettings()).resolves.toEqual(DEFAULT_USER_SETTINGS);
-    await expect(storedDocument()).resolves.toBeNull();
   });
 
+  it('are system theme, RSD and the weather for Belgrade', () => {
+    expect(DEFAULT_USER_SETTINGS).toEqual({
+      theme: 'system',
+      colorScheme: 'slate',
+      currency: 'RSD',
+      location: { mode: 'manual', name: 'Belgrade, RS', lat: 44.82, lon: 20.46 },
+    });
+  });
+
+  it('are still returned for a user whose row is missing', async () => {
+    await prisma.userSettings.delete({ where: { userId: user.id } });
+
+    await expect(getSettings()).resolves.toEqual(DEFAULT_USER_SETTINGS);
+  });
+
+  describe('backfill migration', () => {
+    const backfill = readFileSync(
+      join(
+        __dirname,
+        '../../../apps/api/prisma/migrations/20260927181113_backfill_default_settings/migration.sql'
+      ),
+      'utf8'
+    );
+
+    it('gives existing users without settings the defaults', async () => {
+      const other = await registerUser(app);
+      await prisma.userSettings.deleteMany();
+
+      await prisma.$executeRawUnsafe(backfill);
+
+      expect(await storedSettings()).toEqual(DEFAULT_USER_SETTINGS);
+      expect(await storedSettings(other.id)).toEqual(DEFAULT_USER_SETTINGS);
+    });
+
+    it('leaves settings a user already saved alone', async () => {
+      await putSettings(CUSTOM);
+
+      await prisma.$executeRawUnsafe(backfill);
+
+      expect(await storedSettings()).toEqual(CUSTOM);
+    });
+  });
+});
+
+describe('GET /settings', () => {
   it('falls back to the default for anything in the row it cannot read', async () => {
-    await prisma.userSettings.create({
+    await prisma.userSettings.update({
+      where: { userId: user.id },
       data: {
-        userId: user.id,
         settings: { theme: 'sepia', colorScheme: 'rose', legacyFlag: true },
       },
     });
@@ -122,7 +173,7 @@ describe('PUT /settings', () => {
     await putSettings(withoutLocation, 400);
     await putSettings({ theme: 'dark' }, 400);
 
-    await expect(storedDocument()).resolves.toBeNull();
+    expect(await storedSettings()).toEqual(DEFAULT_USER_SETTINGS);
   });
 });
 
@@ -190,15 +241,15 @@ describe('PATCH /settings', () => {
     ['a name that is too long', { location: { mode: 'manual', name: 'x'.repeat(101), lat: 0, lon: 0 } }],
     ['an unknown key', { fontSize: 14 }],
     ['an unknown key in the location', { location: { mode: 'auto', zoom: 3 } }],
-  ])('rejects %s with 400 and stores nothing', async (_label, body) => {
+  ])('rejects %s with 400 and changes nothing', async (_label, body) => {
     await patchSettings(body, 400);
 
-    await expect(storedDocument()).resolves.toBeNull();
+    expect(await storedSettings()).toEqual(DEFAULT_USER_SETTINGS);
   });
 });
 
 describe('DELETE /settings', () => {
-  it('resets to the defaults and removes the row', async () => {
+  it('resets to the defaults and stores them', async () => {
     await putSettings(CUSTOM);
 
     await expect(
@@ -208,11 +259,13 @@ describe('DELETE /settings', () => {
           .set(...bearer(user))
       )
     ).resolves.toEqual(DEFAULT_USER_SETTINGS);
-    await expect(storedDocument()).resolves.toBeNull();
+    expect(await storedSettings()).toEqual(DEFAULT_USER_SETTINGS);
     await expect(getSettings()).resolves.toEqual(DEFAULT_USER_SETTINGS);
   });
 
-  it('is fine when there is nothing to reset', async () => {
+  it('recreates a missing row', async () => {
+    await prisma.userSettings.delete({ where: { userId: user.id } });
+
     await expect(
       expectJson<UserSettings>(
         server()
@@ -220,6 +273,7 @@ describe('DELETE /settings', () => {
           .set(...bearer(user))
       )
     ).resolves.toEqual(DEFAULT_USER_SETTINGS);
+    expect(await storedSettings()).toEqual(DEFAULT_USER_SETTINGS);
   });
 });
 

@@ -41,13 +41,13 @@ describe('SettingsService', () => {
         .mockImplementation((_userId: string, settings: UserSettings) =>
           Promise.resolve(makeRow(settings))
         ),
-      delete: jest.fn().mockResolvedValue(undefined),
+      createIfMissing: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<SettingsRepository>;
     service = new SettingsService(repository);
   });
 
   describe('get', () => {
-    it('returns the defaults for a user who never saved anything', async () => {
+    it('returns the defaults when the user has no row', async () => {
       repository.findByUser.mockResolvedValue(null);
 
       await expect(service.get('user-1')).resolves.toEqual(
@@ -155,11 +155,25 @@ describe('SettingsService', () => {
   });
 
   describe('reset', () => {
-    it('removes the saved settings and returns the defaults', async () => {
+    it('stores the defaults and returns them', async () => {
       await expect(service.reset('user-1')).resolves.toEqual(
         DEFAULT_USER_SETTINGS
       );
-      expect(repository.delete).toHaveBeenCalledWith('user-1');
+      expect(repository.upsert).toHaveBeenCalledWith(
+        'user-1',
+        DEFAULT_USER_SETTINGS
+      );
+    });
+  });
+
+  describe('createDefaults', () => {
+    it('stores the defaults without overwriting existing settings', async () => {
+      await service.createDefaults('user-1');
+
+      expect(repository.createIfMissing).toHaveBeenCalledWith(
+        'user-1',
+        DEFAULT_USER_SETTINGS
+      );
       expect(repository.upsert).not.toHaveBeenCalled();
     });
   });

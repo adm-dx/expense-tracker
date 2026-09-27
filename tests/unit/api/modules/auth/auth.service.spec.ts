@@ -16,6 +16,7 @@ import {
   GetUserCredentialsByIdQuery,
 } from '@api/modules/users/contracts';
 import { CreateDefaultCategoriesCommand } from '@api/modules/categories/contracts';
+import { CreateDefaultSettingsCommand } from '@api/modules/settings/contracts';
 
 const FIXED_DATE = new Date('2026-01-01T00:00:00.000Z');
 
@@ -59,9 +60,10 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('creates the user with default categories and issues tokens', async () => {
+    it('creates the user with default categories and settings, and issues tokens', async () => {
       commandBus.execute
         .mockResolvedValueOnce(makePublicUser())
+        .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(undefined);
 
       const result = await service.register({
@@ -70,13 +72,17 @@ describe('AuthService', () => {
         password: 'super-secret',
       });
 
-      expect(commandBus.execute).toHaveBeenCalledTimes(2);
+      expect(commandBus.execute).toHaveBeenCalledTimes(3);
       expect(commandBus.execute.mock.calls[0]?.[0]).toBeInstanceOf(
         CreateUserCommand
       );
       expect(commandBus.execute).toHaveBeenNthCalledWith(
         2,
         new CreateDefaultCategoriesCommand('user-1')
+      );
+      expect(commandBus.execute).toHaveBeenNthCalledWith(
+        3,
+        new CreateDefaultSettingsCommand('user-1')
       );
       expect(tokenService.issueTokens).toHaveBeenCalledWith(makePublicUser());
       expect(result).toEqual({
@@ -102,6 +108,30 @@ describe('AuthService', () => {
       expect(result.user).toEqual(makePublicUser());
       expect(result.accessToken).toBe('access');
       expect(Logger.prototype.error).toHaveBeenCalled();
+      // One failed step does not skip the next one.
+      expect(commandBus.execute).toHaveBeenLastCalledWith(
+        new CreateDefaultSettingsCommand('user-1')
+      );
+    });
+
+    it('still registers when seeding default settings fails', async () => {
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      commandBus.execute
+        .mockResolvedValueOnce(makePublicUser())
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('db is down'));
+
+      const result = await service.register({
+        name: 'Jane',
+        email: 'jane@example.com',
+        password: 'super-secret',
+      });
+
+      expect(result.accessToken).toBe('access');
+      expect(Logger.prototype.error).toHaveBeenCalledWith(
+        'Failed to create default settings for user user-1',
+        expect.any(String)
+      );
     });
 
     it('propagates ConflictException for a duplicate email', async () => {

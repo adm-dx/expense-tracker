@@ -16,6 +16,7 @@ import {
   UserCredentials,
 } from '../users/contracts';
 import { CreateDefaultCategoriesCommand } from '../categories/contracts';
+import { CreateDefaultSettingsCommand } from '../settings/contracts';
 import { UserLoggedInEvent } from './contracts';
 import { TokenService, AuthTokens } from './token.service';
 import { LoginDto } from './dto/login.dto';
@@ -42,19 +43,20 @@ export class AuthService {
     const user = await this.commandBus.execute<CreateUserCommand, PublicUser>(
       new CreateUserCommand(dto.name, dto.email, passwordHash),
     );
-    // Awaited so the client sees the categories right after registration, but
-    // never fatal: the account exists at this point and its email is taken, so
+    // Awaited so the client sees them right after registration, but never
+    // fatal: the account exists at this point and its email is taken, so
     // failing the request would leave the user unable to register again.
-    try {
-      await this.commandBus.execute<CreateDefaultCategoriesCommand, void>(
-        new CreateDefaultCategoriesCommand(user.id),
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to create default categories for user ${user.id}`,
-        error instanceof Error ? error.stack : String(error),
-      );
-    }
+    await this.runSetupStep(
+      'default categories',
+      user.id,
+      new CreateDefaultCategoriesCommand(user.id),
+    );
+    // Settings without a row still read as the defaults, so this can fail too.
+    await this.runSetupStep(
+      'default settings',
+      user.id,
+      new CreateDefaultSettingsCommand(user.id),
+    );
     const tokens = await this.tokenService.issueTokens(user);
     return { ...tokens, user };
   }
@@ -140,6 +142,22 @@ export class AuthService {
       throw new UnauthorizedException();
     }
     return this.tokenService.issueTokens(user);
+  }
+
+  /** Runs one step of a new account's setup; logs a failure, never throws. */
+  private async runSetupStep(
+    what: string,
+    userId: string,
+    command: CreateDefaultCategoriesCommand | CreateDefaultSettingsCommand,
+  ): Promise<void> {
+    try {
+      await this.commandBus.execute(command);
+    } catch (error) {
+      this.logger.error(
+        `Failed to create ${what} for user ${userId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
   }
 
   me(userId: string): Promise<PublicUser | null> {

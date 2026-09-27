@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { LocationSetting, UserSettings } from '@expense-tracker/types';
+import {
+  DEFAULT_USER_SETTINGS,
+  type LocationSetting,
+  type UserSettings,
+} from '@expense-tracker/types';
 import { SettingsRepository } from './settings.repository';
 import { LocationSettingDto } from './dto/location-setting.dto';
 import { ReplaceSettingsDto } from './dto/replace-settings.dto';
@@ -7,8 +11,9 @@ import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { roundCoordinate, sanitizeSettings } from './lib/sanitize-settings';
 
 /**
- * Per-user settings, stored as one JSON document. A user who never saved
- * anything has no row and gets the defaults.
+ * Per-user settings, stored as one JSON document. Every user gets a row with
+ * the defaults on registration (existing users by a migration); a missing
+ * row still reads as the defaults, should that step ever have failed.
  */
 @Injectable()
 export class SettingsService {
@@ -17,6 +22,14 @@ export class SettingsService {
   async get(userId: string): Promise<UserSettings> {
     const row = await this.settingsRepository.findByUser(userId);
     return sanitizeSettings(row?.settings);
+  }
+
+  /** On registration: the defaults, unless the user already has settings. */
+  createDefaults(userId: string): Promise<void> {
+    return this.settingsRepository.createIfMissing(
+      userId,
+      DEFAULT_USER_SETTINGS
+    );
   }
 
   replace(userId: string, dto: ReplaceSettingsDto): Promise<UserSettings> {
@@ -44,10 +57,9 @@ export class SettingsService {
     return this.save(userId, next);
   }
 
-  /** Back to the defaults: the row is removed, not rewritten. */
-  async reset(userId: string): Promise<UserSettings> {
-    await this.settingsRepository.delete(userId);
-    return sanitizeSettings(undefined);
+  /** Back to the defaults, stored like any other settings. */
+  reset(userId: string): Promise<UserSettings> {
+    return this.save(userId, DEFAULT_USER_SETTINGS);
   }
 
   private async save(

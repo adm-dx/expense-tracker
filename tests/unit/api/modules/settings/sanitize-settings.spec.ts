@@ -1,4 +1,4 @@
-import { DEFAULT_USER_SETTINGS } from '@expense-tracker/types';
+import { DEFAULT_LOCATION, DEFAULT_USER_SETTINGS } from '@expense-tracker/types';
 import {
   roundCoordinate,
   sanitizeSettings,
@@ -47,8 +47,8 @@ describe('sanitizeSettings', () => {
     [{ mode: 'manual', name: 'X', lat: 1, lon: -181 }],
     [{ mode: 'manual', name: 'X', lat: '45', lon: 19 }],
     [{ mode: 'elsewhere' }],
-  ])('treats %p as no chosen place', (location) => {
-    expect(sanitizeSettings({ location }).location).toEqual({ mode: 'auto' });
+  ])('falls back to the default place for %p', (location) => {
+    expect(sanitizeSettings({ location }).location).toEqual(DEFAULT_LOCATION);
   });
 
   it('strips extra fields from an automatic location', () => {
@@ -60,9 +60,9 @@ describe('sanitizeSettings', () => {
 
   it('never hands out the shared default object', () => {
     const settings = sanitizeSettings(undefined);
-    settings.location = { mode: 'manual', name: 'X', lat: 1, lon: 1 };
+    Object.assign(settings.location, { name: 'Changed' });
 
-    expect(DEFAULT_USER_SETTINGS.location).toEqual({ mode: 'auto' });
+    expect(DEFAULT_LOCATION).toMatchObject({ name: 'Belgrade, RS' });
   });
 });
 
