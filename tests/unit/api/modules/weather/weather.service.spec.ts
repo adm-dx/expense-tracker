@@ -6,6 +6,7 @@ import {
   LOCATION_RETRY_MS,
   LOCATION_TTL_MS,
   MAX_CACHE_ENTRIES,
+  MIN_REFRESH_INTERVAL_MS,
   PLACES_TTL_MS,
   roundCoordinate,
   STALE_WEATHER_MAX_AGE_MS,
@@ -19,6 +20,15 @@ function makeReading(temperature = 18.4): WeatherReading {
     weatherCode: 2,
     isDay: true,
     observedAt: new Date('2026-09-26T10:00:00.000Z'),
+    forecast: [
+      {
+        date: '2026-09-26',
+        weatherCode: 2,
+        temperatureMax: 21,
+        temperatureMin: 12,
+        precipitationProbability: 10,
+      },
+    ],
   };
 }
 
@@ -93,6 +103,44 @@ describe('WeatherService', () => {
     jest.advanceTimersByTime(LOCATION_TTL_MS);
     await service.getCurrent(44.79, 20.45);
     expect(geocodingProvider.reverse).toHaveBeenCalledTimes(2);
+  });
+
+  describe('refresh', () => {
+    it('asks the provider again once the reading is 5 minutes old', async () => {
+      await service.getCurrent(44.79, 20.45);
+      jest.advanceTimersByTime(MIN_REFRESH_INTERVAL_MS);
+      weatherProvider.fetchCurrent.mockResolvedValue(makeReading(20));
+
+      const fresh = await service.getCurrent(44.79, 20.45, { refresh: true });
+
+      expect(weatherProvider.fetchCurrent).toHaveBeenCalledTimes(2);
+      expect(fresh.temperature).toBe(20);
+      // The name comes from its own cache all the same.
+      expect(geocodingProvider.reverse).toHaveBeenCalledTimes(1);
+      // And the fresh reading is what everyone gets next.
+      await expect(service.getCurrent(44.79, 20.45)).resolves.toMatchObject({
+        temperature: 20,
+      });
+    });
+
+    it('answers from the cache while the reading is younger', async () => {
+      await service.getCurrent(44.79, 20.45);
+      jest.advanceTimersByTime(MIN_REFRESH_INTERVAL_MS - 1);
+
+      await service.getCurrent(44.79, 20.45, { refresh: true });
+
+      expect(weatherProvider.fetchCurrent).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to the cached reading when the provider is down', async () => {
+      await service.getCurrent(44.79, 20.45);
+      jest.advanceTimersByTime(MIN_REFRESH_INTERVAL_MS);
+      weatherProvider.fetchCurrent.mockRejectedValue(new Error('network down'));
+
+      await expect(
+        service.getCurrent(44.79, 20.45, { refresh: true })
+      ).resolves.toMatchObject({ temperature: 18.4 });
+    });
   });
 
   it('shares one request between concurrent callers', async () => {

@@ -5,6 +5,7 @@ import {
   formatDate,
   formatTemperature,
   formatTime,
+  formatWeekday,
   getInitials,
   toDateInputValue,
   toIsoDate,
@@ -126,6 +127,13 @@ describe('formatTemperature', () => {
     [-3.6, '−4°C'],
   ])('%p → %p', (celsius, expected) => {
     expect(formatTemperature(celsius)).toBe(expected);
+  });
+});
+
+describe('formatWeekday', () => {
+  it('names the calendar day, whatever the viewer timezone', () => {
+    expect(formatWeekday('2026-09-27')).toBe('Sun');
+    expect(formatWeekday('2026-09-28')).toBe('Mon');
   });
 });
 

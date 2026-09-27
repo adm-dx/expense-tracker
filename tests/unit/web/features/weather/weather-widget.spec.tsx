@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   DEFAULT_USER_SETTINGS,
@@ -37,6 +37,29 @@ const WEATHER: CurrentWeather = {
   isDay: true,
   location: 'Belgrade, RS',
   observedAt: '2026-09-26T12:00:00.000Z',
+  forecast: [
+    {
+      date: '2026-09-26',
+      weatherCode: 2,
+      temperatureMax: 21.3,
+      temperatureMin: 11.8,
+      precipitationProbability: 10,
+    },
+    {
+      date: '2026-09-27',
+      weatherCode: 61,
+      temperatureMax: 17,
+      temperatureMin: -0.4,
+      precipitationProbability: 80,
+    },
+    {
+      date: '2026-09-28',
+      weatherCode: 0,
+      temperatureMax: 19,
+      temperatureMin: 9,
+      precipitationProbability: null,
+    },
+  ],
 };
 
 let unwatchPermission: jest.Mock;
@@ -151,6 +174,8 @@ describe('WeatherWidget', () => {
     });
 
     expect(getWeather).toHaveBeenCalledTimes(2);
+    // Automatic loads leave the server's cache alone.
+    expect(getWeather).toHaveBeenLastCalledWith({ lat: 44.79, lon: 20.45 });
     expect(screen.getByRole('button')).toHaveTextContent('21°C');
   });
 
@@ -188,6 +213,7 @@ describe('WeatherWidget', () => {
     act(() => listener('granted'));
     await flush();
 
+    expect(getWeather).toHaveBeenLastCalledWith({ lat: 44.79, lon: 20.45 });
     expect(screen.getByRole('button')).toHaveTextContent('18°C');
   });
 
@@ -257,10 +283,14 @@ describe('WeatherWidget', () => {
     expect(locate).toHaveBeenCalledTimes(2);
   });
 
-  it('opens the details with the update time and attribution', async () => {
-    const user = userEvent.setup({
+  function setupUser() {
+    return userEvent.setup({
       advanceTimers: (ms) => jest.advanceTimersByTime(ms),
     });
+  }
+
+  it('opens the details with the update time and attribution', async () => {
+    const user = setupUser();
     render(<WeatherWidget />);
     await flush();
 
@@ -276,5 +306,115 @@ describe('WeatherWidget', () => {
     expect(
       screen.getByRole('link', { name: '© OpenStreetMap contributors' })
     ).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright');
+  });
+
+  it('shows the forecast day by day', async () => {
+    const user = setupUser();
+    render(<WeatherWidget />);
+    await flush();
+
+    await user.click(screen.getByRole('button'));
+
+    const list = await screen.findByRole('list', { name: '3-day forecast' });
+    const days = within(list).getAllByRole('listitem');
+    expect(days.map((day) => day.getAttribute('aria-label'))).toEqual([
+      'Today: Partly cloudy, 12°C to 21°C, 10% chance of precipitation',
+      'Sun: Rain, 0°C to 17°C, 80% chance of precipitation',
+      'Mon: Clear sky, 9°C to 19°C',
+    ]);
+    expect(days[1]).toHaveTextContent('80%');
+  });
+
+  it('leaves the forecast out when there is none', async () => {
+    getWeather.mockResolvedValue({ ...WEATHER, forecast: [] });
+    const user = setupUser();
+    render(<WeatherWidget />);
+    await flush();
+
+    await user.click(screen.getByRole('button'));
+
+    expect(await screen.findByText('Partly cloudy')).toBeInTheDocument();
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+  });
+
+  it('asks the server again from the refresh button', async () => {
+    const user = setupUser();
+    render(<WeatherWidget />);
+    await flush();
+    await user.click(screen.getByRole('button'));
+    getWeather.mockResolvedValue({ ...WEATHER, temperature: 21 });
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Refresh weather' })
+    );
+    await flush();
+
+    expect(getWeather).toHaveBeenCalledTimes(2);
+    expect(getWeather).toHaveBeenLastCalledWith(
+      { lat: 44.79, lon: 20.45 },
+      { refresh: true }
+    );
+    expect(
+      screen.getByRole('button', { name: /^Weather: .*21°C/ })
+    ).toBeInTheDocument();
+  });
+
+  it('refreshes the town chosen in the settings', async () => {
+    setLocation(NOVI_SAD);
+    const user = setupUser();
+    render(<WeatherWidget />);
+    await flush();
+    await user.click(screen.getByRole('button'));
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Refresh weather' })
+    );
+    await flush();
+
+    expect(getWeather).toHaveBeenCalledTimes(2);
+    expect(getWeather).toHaveBeenLastCalledWith(
+      { lat: 45.25, lon: 19.84 },
+      { refresh: true }
+    );
+    expect(locate).not.toHaveBeenCalled();
+  });
+
+  it('disables the refresh button while loading', async () => {
+    const user = setupUser();
+    render(<WeatherWidget />);
+    await flush();
+    await user.click(screen.getByRole('button'));
+    getWeather.mockReturnValue(new Promise(() => {}));
+
+    const refresh = await screen.findByRole('button', {
+      name: 'Refresh weather',
+    });
+    await user.click(refresh);
+    await flush();
+
+    expect(refresh).toBeDisabled();
+    // The last weather stays on screen meanwhile.
+    expect(screen.getByText('Partly cloudy')).toBeInTheDocument();
+  });
+
+  it('keeps the last weather and says so when a refresh fails', async () => {
+    const user = setupUser();
+    render(<WeatherWidget />);
+    await flush();
+    await user.click(screen.getByRole('button'));
+    getWeather.mockRejectedValue(new Error('Weather is unavailable'));
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Refresh weather' })
+    );
+    await flush();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't refresh the weather"
+    );
+    expect(screen.getByText('Partly cloudy')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Refresh weather' })
+    ).toBeEnabled();
   });
 });

@@ -10,6 +10,12 @@ import { WeatherProvider } from './providers/weather.provider';
 
 /** Weather changes slowly; Open-Meteo itself updates every 15 minutes. */
 export const WEATHER_TTL_MS = 30 * 60 * 1000;
+/**
+ * A refresh asked for by the user skips the cache only once the reading is
+ * this old: the button can't be used to hammer Open-Meteo, which itself
+ * updates every 15 minutes.
+ */
+export const MIN_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 /** Last good weather is served for this long while the provider is down. */
 export const STALE_WEATHER_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 /** Place names barely ever change; Nominatim asks for caching. */
@@ -51,7 +57,7 @@ class BoundedCache<T> {
 }
 
 /**
- * Current weather plus a place name for a point, cached per rounded
+ * Current weather and forecast plus a place name for a point, cached per rounded
  * coordinates. When the weather provider is down, recent weather is served;
  * when geocoding fails, the weather comes without a name.
  */
@@ -68,7 +74,15 @@ export class WeatherService {
     private readonly geocodingProvider: GeocodingProvider
   ) {}
 
-  getCurrent(lat: number, lon: number): Promise<CurrentWeatherResult> {
+  /**
+   * `refresh` asks the provider again unless the cached reading is younger
+   * than `MIN_REFRESH_INTERVAL_MS`; the place name stays cached either way.
+   */
+  getCurrent(
+    lat: number,
+    lon: number,
+    { refresh = false }: { refresh?: boolean } = {}
+  ): Promise<CurrentWeatherResult> {
     // Rounded here too: the client is expected to round, but not trusted to.
     const roundedLat = roundCoordinate(lat);
     const roundedLon = roundCoordinate(lon);
@@ -77,7 +91,7 @@ export class WeatherService {
     // Concurrent callers for one place share one request.
     let pending = this.inFlight.get(key);
     if (!pending) {
-      pending = this.load(key, roundedLat, roundedLon).finally(() => {
+      pending = this.load(key, roundedLat, roundedLon, refresh).finally(() => {
         this.inFlight.delete(key);
       });
       this.inFlight.set(key, pending);
@@ -107,10 +121,11 @@ export class WeatherService {
   private async load(
     key: string,
     lat: number,
-    lon: number
+    lon: number,
+    refresh: boolean
   ): Promise<CurrentWeatherResult> {
     const [reading, location] = await Promise.all([
-      this.getReading(key, lat, lon),
+      this.getReading(key, lat, lon, refresh),
       this.getLocation(key, lat, lon),
     ]);
     return { ...reading, location };
@@ -119,10 +134,14 @@ export class WeatherService {
   private async getReading(
     key: string,
     lat: number,
-    lon: number
+    lon: number,
+    refresh: boolean
   ): Promise<WeatherReading> {
     const cached = this.weather.get(key);
-    if (cached && Date.now() < cached.expiresAt) return cached.value;
+    const now = Date.now();
+    const refreshing =
+      refresh && cached && now - cached.storedAt >= MIN_REFRESH_INTERVAL_MS;
+    if (cached && now < cached.expiresAt && !refreshing) return cached.value;
 
     try {
       const reading = await this.weatherProvider.fetchCurrent(lat, lon);

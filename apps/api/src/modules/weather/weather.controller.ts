@@ -11,7 +11,9 @@ export class WeatherController {
 
   @Get()
   get(@Query() query: CurrentWeatherQuery): Promise<CurrentWeatherResult> {
-    return this.weatherService.getCurrent(query.lat, query.lon);
+    return this.weatherService.getCurrent(query.lat, query.lon, {
+      refresh: query.refresh === '1',
+    });
   }
 
   /** Finds a town by name, for the location setting. */

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useSettingsStore } from '@/entities/settings';
 import { useWeatherStore } from '@/entities/weather';
 import {
@@ -36,33 +36,48 @@ function useChosenPlace(): Coordinates | null | undefined {
  * throttle timers in background tabs, so a tab that comes back to the front
  * with hour-old weather refreshes right away. Granting or revoking location
  * access, or choosing another place, takes effect without a reload.
+ *
+ * Returns a function that loads it right now for the same place, past the
+ * server's cache (a no-op while the settings are loading).
  */
-export function useWeatherAutoRefresh(): void {
+export function useWeatherAutoRefresh(): () => void {
   const refresh = useWeatherStore((state) => state.refresh);
   const place = useChosenPlace();
   const waiting = place === undefined;
   const lat = place?.lat ?? null;
   const lon = place?.lon ?? null;
 
+  const load = useCallback(
+    (force = false) => {
+      if (waiting) return;
+      void refresh(lat !== null && lon !== null ? { lat, lon } : undefined, {
+        force,
+      });
+    },
+    [refresh, waiting, lat, lon]
+  );
+
   useEffect(() => {
     if (waiting) return;
-    const load = () =>
-      void refresh(lat !== null && lon !== null ? { lat, lon } : undefined);
+    // Never forced; also keeps listener arguments out of `force`.
+    const autoLoad = () => load();
 
-    load();
-    const interval = setInterval(load, WEATHER_REFRESH_INTERVAL_MS);
+    autoLoad();
+    const interval = setInterval(autoLoad, WEATHER_REFRESH_INTERVAL_MS);
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isStale()) load();
+      if (document.visibilityState === 'visible' && isStale()) autoLoad();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     // Only the browser's position depends on the permission.
     const unwatchPermission =
-      lat === null ? onGeolocationPermissionChange(load) : () => {};
+      lat === null ? onGeolocationPermissionChange(autoLoad) : () => {};
 
     return () => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       unwatchPermission();
     };
-  }, [refresh, waiting, lat, lon]);
+  }, [load, waiting, lat]);
+
+  return useCallback(() => load(true), [load]);
 }

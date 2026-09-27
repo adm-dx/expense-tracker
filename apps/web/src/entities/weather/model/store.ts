@@ -24,9 +24,13 @@ interface WeatherState {
   /**
    * Loads the weather at `position`, or where the browser says the user is
    * when it's omitted. A no-op while the same place is loading; a request for
-   * another place supersedes the one in flight.
+   * another place supersedes the one in flight. `force` asks the server to
+   * skip its cache (the user pressed refresh).
    */
-  refresh: (position?: Coordinates) => Promise<void>;
+  refresh: (
+    position?: Coordinates,
+    options?: { force?: boolean }
+  ) => Promise<void>;
   reset: () => void;
 }
 
@@ -39,7 +43,7 @@ export const useWeatherStore = create<WeatherState>()((set, get) => ({
   status: 'idle',
   error: null,
   updatedAt: null,
-  refresh: async (fixedPosition) => {
+  refresh: async (fixedPosition, { force = false } = {}) => {
     const target = fixedPosition
       ? `${fixedPosition.lat},${fixedPosition.lon}`
       : 'browser';
@@ -58,7 +62,9 @@ export const useWeatherStore = create<WeatherState>()((set, get) => ({
     }
 
     try {
-      const weather = await weatherApi.get(position);
+      const weather = force
+        ? await weatherApi.get(position, { refresh: true })
+        : await weatherApi.get(position);
       if (requestId !== latestRequestId) return;
       set({ weather, status: 'success', updatedAt: Date.now() });
     } catch (err) {
