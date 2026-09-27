@@ -35,9 +35,16 @@ describe('AppSidebar', () => {
     render(<AppSidebar />);
 
     expect(navLink('Home')).toHaveAttribute('href', '/');
-    expect(navLink('Categories')).toHaveAttribute('href', '/categories');
     expect(navLink('Reports')).toHaveAttribute('href', '/reports');
     expect(navLink('Settings')).toHaveAttribute('href', '/settings');
+  });
+
+  it('has no separate categories page: they are managed in the settings', () => {
+    render(<AppSidebar />);
+
+    expect(
+      screen.queryByRole('link', { name: 'Categories' })
+    ).not.toBeInTheDocument();
   });
 
   it('marks only Home as current on the home page', () => {

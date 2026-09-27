@@ -4,7 +4,6 @@ import {
   ChartColumn,
   LayoutDashboard,
   Settings,
-  Tags,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -22,7 +21,6 @@ interface NavItem {
 
 const NAV_ITEMS: readonly NavItem[] = [
   { href: '/', label: 'Home', icon: LayoutDashboard },
-  { href: '/categories', label: 'Categories', icon: Tags },
   { href: '/reports', label: 'Reports', icon: ChartColumn },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];

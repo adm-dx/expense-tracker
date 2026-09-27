@@ -3,6 +3,7 @@
 import { DEFAULT_CURRENCY } from '@expense-tracker/types';
 import type { ReactNode } from 'react';
 import { ChangePasswordForm } from '@/features/auth/change-password';
+import { AddCategoryButton } from '@/features/category/upsert';
 import { CurrencyList } from '@/features/settings/currencies';
 import { DefaultCurrencySelect } from '@/features/settings/currency';
 import { LocationForm } from '@/features/settings/location';
@@ -19,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/shared/ui';
+import { CategoriesList } from './categories-list';
 
 interface SectionProps {
   title: string;
@@ -109,6 +111,16 @@ export function SettingsPanel() {
         ) : (
           <SectionSkeleton />
         )}
+      </Section>
+
+      <Section
+        title="Categories"
+        description="Every transaction belongs to one. A category with transactions can be deleted only by moving them to another."
+      >
+        <div className="space-y-4">
+          <AddCategoryButton />
+          <CategoriesList />
+        </div>
       </Section>
 
       <Section
