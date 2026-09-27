@@ -25,6 +25,7 @@ export interface TransactionSumRow {
   categoryId: string;
   currency: Currency;
   amount: Prisma.Decimal;
+  count: number;
 }
 
 @Injectable()
@@ -85,6 +86,7 @@ export class TransactionsRepository {
       by: ['type', 'categoryId', 'currency'],
       where: this.buildWhere(userId, filters),
       _sum: { amount: true },
+      _count: { _all: true },
     });
     return groups.map((group) => ({
       type: group.type,
@@ -92,6 +94,7 @@ export class TransactionsRepository {
       // The column is TEXT, but only validated codes are ever written to it.
       currency: group.currency as Currency,
       amount: group._sum.amount ?? new Prisma.Decimal(0),
+      count: group._count._all,
     }));
   }
 
