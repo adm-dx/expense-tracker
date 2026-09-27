@@ -191,6 +191,8 @@ describe('PUT /settings', () => {
 
   it('rejects currencies, which it cannot change', async () => {
     await putSettings({ ...CUSTOM, currencies: ['RSD'] }, 400);
+
+    expect(await storedSettings()).toEqual(DEFAULT_USER_SETTINGS);
   });
 
   it('rejects a display currency the user has not enabled', async () => {
@@ -502,16 +504,14 @@ describe('DELETE /settings/currencies/:code', () => {
     );
   });
 
-  it('refuses to remove RSD', async () => {
-    await removeCurrency('RSD', 400);
-  });
+  it.each([
+    ['RSD', 400],
+    ['XYZ', 400],
+    ['GBP', 404],
+  ])('answers %s with %i and changes nothing', async (code, status) => {
+    await removeCurrency(code, status);
 
-  it('rejects an unknown code with 400', async () => {
-    await removeCurrency('XYZ', 400);
-  });
-
-  it('answers 404 for a currency that is not enabled', async () => {
-    await removeCurrency('GBP', 404);
+    expect(await storedSettings()).toEqual(DEFAULT_USER_SETTINGS);
   });
 
   it('shows the converted amounts in the list', async () => {

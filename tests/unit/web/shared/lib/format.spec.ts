@@ -1,5 +1,6 @@
 import {
   formatAmount,
+  formatCurrency,
   formatMoney,
   formatDate,
   formatTemperature,
@@ -11,33 +12,44 @@ import {
   todayDateInputValue,
 } from '@web/shared/lib/format';
 
+describe('formatCurrency', () => {
+  it.each([
+    ['RSD', 'RSD (дин.)'],
+    ['EUR', 'EUR (€)'],
+    ['HUF', 'HUF (Ft)'],
+    ['USD', 'USD ($)'],
+  ] as const)('%s → %s', (code, expected) => {
+    expect(formatCurrency(code)).toBe(expected);
+  });
+});
+
 describe('formatAmount', () => {
   it('prefixes income with a plus sign', () => {
-    expect(formatAmount('12.5', 'INCOME', 'EUR')).toBe('+12.50 EUR');
+    expect(formatAmount('12.5', 'INCOME', 'EUR')).toBe('+12.50 EUR (€)');
   });
 
   it('prefixes expenses with a real minus sign', () => {
-    expect(formatAmount('12.5', 'EXPENSE', 'RSD')).toBe('−12.50 RSD');
+    expect(formatAmount('12.5', 'EXPENSE', 'RSD')).toBe('−12.50 RSD (дин.)');
   });
 
   it('groups thousands and rounds to two decimals', () => {
     expect(formatAmount('1234567.891', 'INCOME', 'HUF')).toBe(
-      '+1,234,567.89 HUF'
+      '+1,234,567.89 HUF (Ft)'
     );
   });
 });
 
 describe('formatMoney', () => {
   it('formats without a sign for positive amounts', () => {
-    expect(formatMoney('1234.5', 'RSD')).toBe('1,234.50 RSD');
+    expect(formatMoney('1234.5', 'RSD')).toBe('1,234.50 RSD (дин.)');
   });
 
   it('keeps the sign of a negative balance', () => {
-    expect(formatMoney('-337.50', 'EUR')).toBe('-337.50 EUR');
+    expect(formatMoney('-337.50', 'EUR')).toBe('-337.50 EUR (€)');
   });
 
   it('formats zero', () => {
-    expect(formatMoney('0', 'HUF')).toBe('0.00 HUF');
+    expect(formatMoney('0', 'HUF')).toBe('0.00 HUF (Ft)');
   });
 });
 

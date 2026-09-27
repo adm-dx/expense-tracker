@@ -1,10 +1,7 @@
-import {
-  CURRENCIES,
-  DEFAULT_CURRENCY,
-  type Currency,
-} from '@expense-tracker/types';
+import { DEFAULT_CURRENCY, type Currency } from '@expense-tracker/types';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { isCurrency } from '@/shared/lib/currency';
 
 interface CurrencyState {
   /** The currency every amount on screen is converted to. */
@@ -12,10 +9,6 @@ interface CurrencyState {
   hasHydrated: boolean;
   setCurrency: (currency: Currency) => void;
   setHasHydrated: (value: boolean) => void;
-}
-
-function isCurrency(value: unknown): value is Currency {
-  return (CURRENCIES as readonly unknown[]).includes(value);
 }
 
 /**

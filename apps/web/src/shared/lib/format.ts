@@ -1,4 +1,8 @@
-import type { Currency, TransactionType } from '@expense-tracker/types';
+import {
+  CURRENCY_DETAILS,
+  type Currency,
+  type TransactionType,
+} from '@expense-tracker/types';
 
 const amountFormatter = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 2,
@@ -14,21 +18,26 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: 'UTC',
 });
 
-// The code goes after the number: `€`, `Ft` and `дин.` would look uneven
-// side by side, and a leading sign reads better next to digits.
-/** Signed by transaction type, e.g. `+12.50 EUR`, `−1,200.00 RSD`. */
+/** The code with its symbol, e.g. `EUR (€)`, `RSD (дин.)`. */
+export function formatCurrency(currency: Currency): string {
+  return `${currency} (${CURRENCY_DETAILS[currency].symbol})`;
+}
+
+// The currency goes after the number: `€`, `Ft` and `дин.` alone would look
+// uneven side by side, and a leading sign reads better next to digits.
+/** Signed by transaction type, e.g. `+12.50 EUR (€)`, `−1,200.00 RSD (дин.)`. */
 export function formatAmount(
   amount: string,
   type: TransactionType,
   currency: Currency
 ): string {
   const sign = type === 'INCOME' ? '+' : '−';
-  return `${sign}${amountFormatter.format(Number(amount))} ${currency}`;
+  return `${sign}${amountFormatter.format(Number(amount))} ${formatCurrency(currency)}`;
 }
 
 /** Plain amount with its currency, signed only when negative (balances). */
 export function formatMoney(amount: string, currency: Currency): string {
-  return `${amountFormatter.format(Number(amount))} ${currency}`;
+  return `${amountFormatter.format(Number(amount))} ${formatCurrency(currency)}`;
 }
 
 export function formatDate(iso: string): string {

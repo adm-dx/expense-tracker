@@ -12,6 +12,8 @@ jest.mock('@web/shared/api/settings-api', () => ({
     update: jest.fn(),
     replace: jest.fn(),
     reset: jest.fn(),
+    addCurrency: jest.fn(),
+    removeCurrency: jest.fn(),
   },
 }));
 
@@ -21,6 +23,7 @@ const SAVED: UserSettings = {
   theme: 'dark',
   colorScheme: 'blue',
   currency: 'EUR',
+  currencies: ['RSD', 'EUR', 'HUF'],
   location: { mode: 'auto' },
 };
 
@@ -188,6 +191,66 @@ describe('resetToDefaults', () => {
     await expect(state().resetToDefaults()).rejects.toThrow('down');
 
     expect(state().settings).toEqual(SAVED);
+  });
+});
+
+describe('addCurrency', () => {
+  it('stores what the server answers with', async () => {
+    useSettingsStore.setState({ settings: SAVED, status: 'success' });
+    const saved = {
+      ...SAVED,
+      currencies: [...SAVED.currencies, 'USD' as const],
+    };
+    api.addCurrency.mockResolvedValue(saved);
+
+    await expect(state().addCurrency('USD')).resolves.toEqual(saved);
+
+    expect(api.addCurrency).toHaveBeenCalledWith('USD');
+    expect(state().settings).toEqual(saved);
+  });
+});
+
+describe('removeCurrency', () => {
+  it('stores the settings and returns how many were converted', async () => {
+    useSettingsStore.setState({ settings: SAVED, status: 'success' });
+    const settings: UserSettings = {
+      ...SAVED,
+      currency: 'RSD',
+      currencies: ['RSD', 'HUF'],
+    };
+    api.removeCurrency.mockResolvedValue({ settings, convertedCount: 2 });
+
+    await expect(state().removeCurrency('EUR')).resolves.toEqual({
+      settings,
+      convertedCount: 2,
+    });
+
+    expect(state().settings).toEqual(settings);
+  });
+
+  it('leaves the settings alone when it fails', async () => {
+    useSettingsStore.setState({ settings: SAVED, status: 'success' });
+    api.removeCurrency.mockRejectedValue(new Error('down'));
+
+    await expect(state().removeCurrency('EUR')).rejects.toThrow('down');
+
+    expect(state().settings).toEqual(SAVED);
+  });
+
+  it('ignores the answer when the user signed out meanwhile', async () => {
+    useSettingsStore.setState({ settings: SAVED, status: 'success' });
+    const request = deferred<{
+      settings: UserSettings;
+      convertedCount: number;
+    }>();
+    api.removeCurrency.mockReturnValue(request.promise);
+
+    const pending = state().removeCurrency('EUR');
+    state().reset();
+    request.resolve({ settings: SAVED, convertedCount: 0 });
+    await pending;
+
+    expect(state().settings).toBeNull();
   });
 });
 

@@ -1,16 +1,17 @@
 'use client';
 
 import {
-  CURRENCIES,
+  DEFAULT_CURRENCY,
   type Currency,
   type ExchangeRates,
 } from '@expense-tracker/types';
 import { ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrencyStore, useExchangeRatesStore } from '@/entities/currency';
-import { useSettingsStore } from '@/entities/settings';
+import { useEnabledCurrencies, useSettingsStore } from '@/entities/settings';
+import { isCurrency } from '@/shared/lib/currency';
 import { getErrorMessage } from '@/shared/lib/error';
-import { formatDate } from '@/shared/lib/format';
+import { formatCurrency, formatDate } from '@/shared/lib/format';
 import {
   Button,
   DropdownMenu,
@@ -26,21 +27,30 @@ const rateFormatter = new Intl.NumberFormat('en-US', {
   maximumSignificantDigits: 4,
 });
 
-function isCurrency(value: string): value is Currency {
-  return (CURRENCIES as readonly string[]).includes(value);
-}
-
-/** "1 EUR = 117.5 RSD" for every other currency, priced in `target`. */
-function describeRates(rates: ExchangeRates, target: Currency): string[] {
-  const targetRate = Number(rates.rates[target]);
-  return CURRENCIES.filter((code) => code !== target).map((code) => {
-    const value = targetRate / Number(rates.rates[code]);
-    return `1 ${code} = ${rateFormatter.format(value)} ${target}`;
+/**
+ * "1 EUR (€) = 117.5 RSD (дин.)" for each of the other `currencies`, priced
+ * in `target`; a code without a rate today is left out.
+ */
+function describeRates(
+  rates: ExchangeRates,
+  target: Currency,
+  currencies: readonly Currency[]
+): string[] {
+  const targetRate = rates.rates[target];
+  if (!targetRate) return [];
+  return currencies.flatMap((code) => {
+    const rate = rates.rates[code];
+    if (code === target || !rate) return [];
+    const value = Number(targetRate) / Number(rate);
+    return [
+      `1 ${formatCurrency(code)} = ${rateFormatter.format(value)} ${formatCurrency(target)}`,
+    ];
   });
 }
 
 export function CurrencySelect() {
   const currency = useCurrencyStore((state) => state.currency);
+  const currencies = useEnabledCurrencies();
   const hasHydrated = useCurrencyStore((state) => state.hasHydrated);
   const updateSettings = useSettingsStore((state) => state.update);
   const rates = useExchangeRatesStore((state) => state.rates);
@@ -50,8 +60,9 @@ export function CurrencySelect() {
   // Same size as the real trigger, so the header doesn't shift on hydration.
   if (!hasHydrated) {
     return (
-      <Button variant="ghost" size="sm" className="w-[76px]" disabled>
-        <span className="invisible">RSD</span>
+      <Button variant="ghost" size="sm" className="gap-1" disabled>
+        <span className="invisible">{formatCurrency(DEFAULT_CURRENCY)}</span>
+        <ChevronDown className="invisible size-4" />
       </Button>
     );
   }
@@ -66,14 +77,14 @@ export function CurrencySelect() {
         <Button
           variant="ghost"
           size="sm"
-          className="w-[76px] gap-1"
-          aria-label={`Display currency: ${currency}`}
+          className="gap-1"
+          aria-label={`Display currency: ${formatCurrency(currency)}`}
         >
-          {currency}
+          {formatCurrency(currency)}
           <ChevronDown className="size-4 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel>Show amounts in</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={currency}
@@ -86,9 +97,9 @@ export function CurrencySelect() {
             });
           }}
         >
-          {CURRENCIES.map((code) => (
+          {currencies.map((code) => (
             <DropdownMenuRadioItem key={code} value={code}>
-              {code}
+              {formatCurrency(code)}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
@@ -96,7 +107,7 @@ export function CurrencySelect() {
         <DropdownMenuLabel className="space-y-0.5 text-xs font-normal text-muted-foreground">
           {rates ? (
             <>
-              {describeRates(rates, currency).map((line) => (
+              {describeRates(rates, currency, currencies).map((line) => (
                 <p key={line} className="tabular-nums">
                   {line}
                 </p>

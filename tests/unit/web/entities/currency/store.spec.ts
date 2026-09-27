@@ -43,7 +43,7 @@ describe('useCurrencyStore', () => {
   it('falls back to RSD for an unknown stored value', async () => {
     // Set first: the persist middleware writes every state change to storage.
     useCurrencyStore.setState({ currency: 'EUR' });
-    stored('USD');
+    stored('XYZ');
 
     await useCurrencyStore.persist.rehydrate();
 
