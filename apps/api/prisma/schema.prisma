@@ -14,7 +14,7 @@ generator client {
 }
 
 model User {
-  id            String         @id @default(cuid())
+  id            String         @id @default(uuid())
   email         String         @unique
   name          String
   passwordHash  String
@@ -44,7 +44,7 @@ model UserSettings {
 }
 
 model RefreshToken {
-  id        String    @id @default(cuid())
+  id        String    @id @default(uuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash String
@@ -57,7 +57,7 @@ model RefreshToken {
 }
 
 model Category {
-  id           String        @id @default(cuid())
+  id           String        @id @default(uuid())
   userId       String
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   name         String        @db.VarChar(50)
