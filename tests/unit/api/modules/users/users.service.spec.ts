@@ -27,6 +27,7 @@ describe('UsersService', () => {
       findByEmail: jest.fn(),
       create: jest.fn(),
       updateLastLogin: jest.fn(),
+      updatePasswordHash: jest.fn(),
     } as unknown as jest.Mocked<UsersRepository>;
     service = new UsersService(repository);
   });
@@ -78,6 +79,38 @@ describe('UsersService', () => {
         createdAt: makeUser().createdAt,
         updatedAt: makeUser().updatedAt,
       });
+    });
+  });
+
+  describe('getCredentialsById', () => {
+    it('returns the hash and the active flag for a known id', async () => {
+      repository.findById.mockResolvedValue(makeUser() as never);
+
+      await expect(service.getCredentialsById('user-1')).resolves.toEqual({
+        id: 'user-1',
+        email: 'jane@example.com',
+        passwordHash: 'hashed-secret',
+        isActive: true,
+      });
+    });
+
+    it('returns null for an unknown id', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(service.getCredentialsById('ghost')).resolves.toBeNull();
+    });
+  });
+
+  describe('changePassword', () => {
+    it('stores the new hash', async () => {
+      repository.updatePasswordHash.mockResolvedValue(makeUser() as never);
+
+      await service.changePassword('user-1', 'new-hash');
+
+      expect(repository.updatePasswordHash).toHaveBeenCalledWith(
+        'user-1',
+        'new-hash'
+      );
     });
   });
 });

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Logger,
   UnauthorizedException,
@@ -8,7 +9,12 @@ import * as bcrypt from 'bcryptjs';
 import { AuthService } from '@api/modules/auth/auth.service';
 import { TokenService } from '@api/modules/auth/token.service';
 import { UserLoggedInEvent } from '@api/modules/auth/contracts';
-import { CreateUserCommand } from '@api/modules/users/contracts';
+import {
+  ChangeUserPasswordCommand,
+  CreateUserCommand,
+  GetUserByIdQuery,
+  GetUserCredentialsByIdQuery,
+} from '@api/modules/users/contracts';
 import { CreateDefaultCategoriesCommand } from '@api/modules/categories/contracts';
 
 const FIXED_DATE = new Date('2026-01-01T00:00:00.000Z');
@@ -43,6 +49,7 @@ describe('AuthService', () => {
         .mockResolvedValue({ accessToken: 'access', refreshToken: 'refresh' }),
       rotate: jest.fn(),
       revoke: jest.fn(),
+      revokeAll: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<TokenService>;
     service = new AuthService(commandBus, queryBus, eventBus, tokenService);
   });
@@ -158,6 +165,92 @@ describe('AuthService', () => {
         service.login({ email: 'ghost@example.com', password: 'whatever' })
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(eventBus.publish).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('changePassword', () => {
+    async function credentials(password: string, isActive = true) {
+      return {
+        id: 'user-1',
+        email: 'jane@example.com',
+        passwordHash: await bcrypt.hash(password, 4),
+        isActive,
+      };
+    }
+
+    it('stores the new hash, signs out everywhere and issues new tokens', async () => {
+      queryBus.execute
+        .mockResolvedValueOnce(await credentials('old-password'))
+        .mockResolvedValueOnce(makePublicUser());
+
+      const tokens = await service.changePassword('user-1', {
+        currentPassword: 'old-password',
+        newPassword: 'new-password',
+      });
+
+      expect(queryBus.execute).toHaveBeenNthCalledWith(
+        1,
+        new GetUserCredentialsByIdQuery('user-1')
+      );
+      const [command] = commandBus.execute.mock.calls[0]!;
+      expect(command).toBeInstanceOf(ChangeUserPasswordCommand);
+      const { userId, passwordHash } = command as ChangeUserPasswordCommand;
+      expect(userId).toBe('user-1');
+      await expect(bcrypt.compare('new-password', passwordHash)).resolves.toBe(
+        true
+      );
+      expect(tokenService.revokeAll).toHaveBeenCalledWith('user-1');
+      expect(queryBus.execute).toHaveBeenNthCalledWith(
+        2,
+        new GetUserByIdQuery('user-1')
+      );
+      // Revoked first, so the new refresh token survives.
+      expect(tokenService.revokeAll.mock.invocationCallOrder[0]).toBeLessThan(
+        tokenService.issueTokens.mock.invocationCallOrder[0]!
+      );
+      expect(tokens).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+
+    it('rejects a wrong current password with 400, not 401', async () => {
+      queryBus.execute.mockResolvedValueOnce(await credentials('old-password'));
+
+      await expect(
+        service.changePassword('user-1', {
+          currentPassword: 'guess',
+          newPassword: 'new-password',
+        })
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(commandBus.execute).not.toHaveBeenCalled();
+      expect(tokenService.revokeAll).not.toHaveBeenCalled();
+    });
+
+    it('rejects a new password equal to the current one', async () => {
+      queryBus.execute.mockResolvedValueOnce(await credentials('same-password'));
+
+      await expect(
+        service.changePassword('user-1', {
+          currentPassword: 'same-password',
+          newPassword: 'same-password',
+        })
+      ).rejects.toThrow('New password must differ from the current one');
+      expect(commandBus.execute).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a missing user', null],
+      ['a deactivated user', 'inactive'],
+    ])('rejects %s with UnauthorizedException', async (_label, kind) => {
+      queryBus.execute.mockResolvedValueOnce(
+        kind === null ? null : await credentials('old-password', false)
+      );
+
+      await expect(
+        service.changePassword('user-1', {
+          currentPassword: 'old-password',
+          newPassword: 'new-password',
+        })
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(commandBus.execute).not.toHaveBeenCalled();
     });
   });
 });
