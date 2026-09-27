@@ -1,13 +1,31 @@
-import type { Place } from '@expense-tracker/types';
+import type { DailyForecast, Place } from '@expense-tracker/types';
 import type { WeatherReading } from '@api/modules/weather/contracts';
 import { GeocodingProvider } from '@api/modules/weather/providers/geocoding.provider';
 import { WeatherProvider } from '@api/modules/weather/providers/weather.provider';
+
+export const TEST_FORECAST: DailyForecast[] = [
+  {
+    date: '2026-09-26',
+    weatherCode: 2,
+    temperatureMax: 21.3,
+    temperatureMin: 11.8,
+    precipitationProbability: 10,
+  },
+  {
+    date: '2026-09-27',
+    weatherCode: 61,
+    temperatureMax: 17,
+    temperatureMin: 10.2,
+    precipitationProbability: 80,
+  },
+];
 
 export const TEST_WEATHER = {
   temperature: 18.4,
   weatherCode: 2,
   isDay: true,
   observedAt: '2026-09-26T12:00:00.000Z',
+  forecast: TEST_FORECAST,
 } as const;
 export const TEST_LOCATION = 'Belgrade, RS';
 

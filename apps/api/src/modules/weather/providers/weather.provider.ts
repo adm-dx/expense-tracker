@@ -5,6 +5,9 @@ import type { WeatherReading } from '../contracts';
  * token: swap the source (or fake it in tests) by providing another one.
  */
 export abstract class WeatherProvider {
-  /** Current conditions at a point; throws when the source fails. */
+  /**
+   * Current conditions and the daily forecast at a point; throws when the
+   * source fails.
+   */
   abstract fetchCurrent(lat: number, lon: number): Promise<WeatherReading>;
 }

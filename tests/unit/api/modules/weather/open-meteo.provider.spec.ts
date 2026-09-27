@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import {
   DEFAULT_WEATHER_URL,
+  FORECAST_DAYS,
   OpenMeteoProvider,
 } from '@api/modules/weather/providers/open-meteo.provider';
 
@@ -11,9 +12,21 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// 2026-09-26 and 2026-09-27, midnight in Belgrade (UTC+2).
+const DAY_1 = Date.UTC(2026, 8, 25, 22) / 1000;
+const DAY_2 = DAY_1 + 24 * 60 * 60;
+
 const SUCCESS = {
   latitude: 44.8,
   longitude: 20.46,
+  utc_offset_seconds: 7200,
+  daily: {
+    time: [DAY_1, DAY_2],
+    weather_code: [3, 61],
+    temperature_2m_max: [21.3, 17],
+    temperature_2m_min: [11.8, 10.2],
+    precipitation_probability_max: [10, null],
+  },
   current: {
     time: 1790416800,
     interval: 900,
@@ -39,7 +52,7 @@ describe('OpenMeteoProvider', () => {
     fetchMock.mockRestore();
   });
 
-  it('requests the current conditions at the point', async () => {
+  it('requests the current conditions and the forecast at the point', async () => {
     fetchMock.mockResolvedValue(jsonResponse(SUCCESS));
 
     const reading = await makeProvider().fetchCurrent(44.79, 20.45);
@@ -53,6 +66,10 @@ describe('OpenMeteoProvider', () => {
       latitude: '44.79',
       longitude: '20.45',
       current: 'temperature_2m,weather_code,is_day',
+      daily:
+        'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+      forecast_days: String(FORECAST_DAYS),
+      timezone: 'auto',
       timeformat: 'unixtime',
     });
     expect(init).toEqual(
@@ -63,7 +80,46 @@ describe('OpenMeteoProvider', () => {
       weatherCode: 3,
       isDay: false,
       observedAt: new Date(1790416800 * 1000),
+      forecast: [
+        {
+          date: '2026-09-26',
+          weatherCode: 3,
+          temperatureMax: 21.3,
+          temperatureMin: 11.8,
+          precipitationProbability: 10,
+        },
+        {
+          date: '2026-09-27',
+          weatherCode: 61,
+          temperatureMax: 17,
+          temperatureMin: 10.2,
+          precipitationProbability: null,
+        },
+      ],
     });
+  });
+
+  it('leaves out a forecast day with a missing value', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        ...SUCCESS,
+        daily: { ...SUCCESS.daily, temperature_2m_max: [21.3, null] },
+      })
+    );
+
+    const reading = await makeProvider().fetchCurrent(0, 0);
+
+    expect(reading.forecast.map((day) => day.date)).toEqual(['2026-09-26']);
+  });
+
+  it('keeps the current conditions when the forecast is missing', async () => {
+    const { daily: _daily, ...withoutForecast } = SUCCESS;
+    fetchMock.mockResolvedValue(jsonResponse(withoutForecast));
+
+    const reading = await makeProvider().fetchCurrent(0, 0);
+
+    expect(reading.temperature).toBe(18.4);
+    expect(reading.forecast).toEqual([]);
   });
 
   it('uses WEATHER_URL when it is set', async () => {

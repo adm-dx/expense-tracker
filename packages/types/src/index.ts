@@ -291,6 +291,22 @@ export interface CurrentWeather {
   location: string | null;
   /** When the provider measured it. */
   observedAt: string;
+  /** Today and the next four days, in order, by the place's local calendar. */
+  forecast: DailyForecast[];
+}
+
+/** One day of the forecast in `CurrentWeather`. */
+export interface DailyForecast {
+  /** Calendar day at the place, `YYYY-MM-DD`. */
+  date: string;
+  /** WMO weather interpretation code for the day's most severe weather. */
+  weatherCode: number;
+  /** °C */
+  temperatureMax: number;
+  /** °C */
+  temperatureMin: number;
+  /** Highest chance of precipitation during the day, %; null when unknown. */
+  precipitationProbability: number | null;
 }
 
 /** A settlement found by name for `GET /weather/places`. */

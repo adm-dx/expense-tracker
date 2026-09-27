@@ -24,6 +24,7 @@ const WEATHER: CurrentWeather = {
   isDay: true,
   location: 'Belgrade, RS',
   observedAt: '2026-09-26T12:00:00.000Z',
+  forecast: [],
 };
 
 function deferred<T>() {
@@ -82,6 +83,12 @@ describe('useWeatherStore', () => {
       status: 'unavailable',
       updatedAt: null,
     });
+  });
+
+  it('asks the server to skip its cache only when forced', async () => {
+    await useWeatherStore.getState().refresh(BELGRADE, { force: true });
+
+    expect(getWeather).toHaveBeenCalledWith(BELGRADE, { refresh: true });
   });
 
   it('keeps the last weather when a refresh fails', async () => {

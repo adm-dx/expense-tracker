@@ -65,12 +65,42 @@ describe('GET /weather', () => {
     ['a longitude past the antimeridian', '?lat=44.79&lon=181'],
     ['a non-number', '?lat=abc&lon=20.45'],
     ['an unknown parameter', '?lat=44.79&lon=20.45&city=Belgrade'],
+    ['refresh other than 1', '?lat=44.79&lon=20.45&refresh=yes'],
   ])('rejects %s with 400', async (_, query) => {
     const response = await server()
       .get(`/weather${query}`)
       .set(...bearer(user));
 
     expect(response.status).toBe(400);
+  });
+
+  it('asks the provider again for refresh=1, at most every 5 minutes', async () => {
+    const get = (query: string) =>
+      expectJson<CurrentWeather>(
+        server()
+          .get(`/weather?lat=40.42&lon=-3.7${query}`)
+          .set(...bearer(user))
+      );
+    const callsHere = () =>
+      weatherProvider.calls.filter(([lat]) => lat === 40.42).length;
+
+    await get('');
+    await get('&refresh=1');
+    // Just fetched: the cache answers.
+    expect(callsHere()).toBe(1);
+
+    const realNow = Date.now.bind(Date);
+    const clock = jest
+      .spyOn(Date, 'now')
+      .mockImplementation(() => realNow() + 5 * 60 * 1000);
+    try {
+      await get('');
+      expect(callsHere()).toBe(1);
+      await get('&refresh=1');
+      expect(callsHere()).toBe(2);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it('answers 503 when the provider is down and nothing is cached', async () => {
@@ -105,9 +135,7 @@ describe('GET /weather', () => {
 
 describe('GET /weather/places', () => {
   it('requires a token', async () => {
-    expect((await server().get('/weather/places?q=belgrade')).status).toBe(
-      401
-    );
+    expect((await server().get('/weather/places?q=belgrade')).status).toBe(401);
   });
 
   it('returns the towns found for the query', async () => {

@@ -55,6 +55,17 @@ export function formatTime(iso: string): string {
   return timeFormatter.format(new Date(iso));
 }
 
+// A `YYYY-MM-DD` day, read in UTC like `formatDate` so it stays that day.
+const weekdayFormatter = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  timeZone: 'UTC',
+});
+
+/** `2026-09-27` → `Sun` */
+export function formatWeekday(date: string): string {
+  return weekdayFormatter.format(new Date(toIsoDate(date)));
+}
+
 /** Whole degrees Celsius, e.g. `18°C`, `−3°C`; never `-0°C`. */
 export function formatTemperature(celsius: number): string {
   const rounded = Math.round(celsius);
