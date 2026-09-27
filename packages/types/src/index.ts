@@ -102,11 +102,73 @@ export interface DeleteCategoryOptions {
 
 export type TransactionType = 'INCOME' | 'EXPENSE';
 
-export const CURRENCIES = ['RSD', 'EUR', 'HUF'] as const;
+// Every currency a user can enable. All of them are published by the exchange
+// rates provider, so an amount in any of them can be converted.
+export const CURRENCIES = [
+  'RSD',
+  'EUR',
+  'HUF',
+  'USD',
+  'GBP',
+  'CHF',
+  'JPY',
+  'CNY',
+  'CAD',
+  'AUD',
+  'PLN',
+  'CZK',
+  'RON',
+  'BGN',
+  'BAM',
+  'MKD',
+  'TRY',
+  'UAH',
+  'RUB',
+  'SEK',
+  'NOK',
+  'DKK',
+] as const;
 
 export type Currency = (typeof CURRENCIES)[number];
 
-export const DEFAULT_CURRENCY: Currency = 'RSD';
+export interface CurrencyDetails {
+  /** Shown next to the code, e.g. `EUR (€)`. */
+  symbol: string;
+  /** English name, e.g. "Euro". */
+  name: string;
+}
+
+// A `Record`, so a code added to `CURRENCIES` without a symbol fails to compile.
+export const CURRENCY_DETAILS: Record<Currency, CurrencyDetails> = {
+  RSD: { symbol: 'дин.', name: 'Serbian dinar' },
+  EUR: { symbol: '€', name: 'Euro' },
+  HUF: { symbol: 'Ft', name: 'Hungarian forint' },
+  USD: { symbol: '$', name: 'US dollar' },
+  GBP: { symbol: '£', name: 'British pound' },
+  CHF: { symbol: 'Fr.', name: 'Swiss franc' },
+  JPY: { symbol: '¥', name: 'Japanese yen' },
+  CNY: { symbol: '¥', name: 'Chinese yuan' },
+  CAD: { symbol: 'C$', name: 'Canadian dollar' },
+  AUD: { symbol: 'A$', name: 'Australian dollar' },
+  PLN: { symbol: 'zł', name: 'Polish złoty' },
+  CZK: { symbol: 'Kč', name: 'Czech koruna' },
+  RON: { symbol: 'lei', name: 'Romanian leu' },
+  BGN: { symbol: 'лв', name: 'Bulgarian lev' },
+  BAM: { symbol: 'KM', name: 'Bosnia and Herzegovina mark' },
+  MKD: { symbol: 'ден', name: 'Macedonian denar' },
+  TRY: { symbol: '₺', name: 'Turkish lira' },
+  UAH: { symbol: '₴', name: 'Ukrainian hryvnia' },
+  RUB: { symbol: '₽', name: 'Russian ruble' },
+  SEK: { symbol: 'kr', name: 'Swedish krona' },
+  NOK: { symbol: 'kr', name: 'Norwegian krone' },
+  DKK: { symbol: 'kr', name: 'Danish krone' },
+};
+
+/** Always enabled: the display fallback, and where a removed currency's transactions go. */
+export const DEFAULT_CURRENCY: Currency & 'RSD' = 'RSD';
+
+/** The currencies a new user has enabled. */
+export const DEFAULT_CURRENCIES: readonly Currency[] = ['RSD', 'EUR', 'HUF'];
 
 export interface Transaction {
   id: string;
@@ -208,7 +270,8 @@ export interface TransactionSummary {
 export interface ExchangeRates {
   base: Currency;
   date: string;
-  rates: Record<Currency, string>;
+  /** A code the provider didn't publish today is missing. */
+  rates: Partial<Record<Currency, string>>;
 }
 
 /** Coordinates for `GET /weather`, in decimal degrees. */
@@ -266,14 +329,15 @@ export type LocationMode = (typeof LOCATION_MODES)[number];
 
 /** Where the weather is shown for: the browser's position or a chosen place. */
 export type LocationSetting =
-  | { mode: 'auto' }
-  | { mode: 'manual'; name: string; lat: number; lon: number };
+  { mode: 'auto' } | { mode: 'manual'; name: string; lat: number; lon: number };
 
 export interface UserSettings {
   theme: Theme;
   colorScheme: ColorScheme;
-  /** Amounts are shown in it; new transactions start in it. */
+  /** Amounts are shown in it; new transactions start in it. One of `currencies`. */
   currency: Currency;
+  /** The currencies the user has enabled; always includes RSD. */
+  currencies: Currency[];
   location: LocationSetting;
 }
 
@@ -290,14 +354,31 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   theme: 'system',
   colorScheme: 'slate',
   currency: DEFAULT_CURRENCY,
+  currencies: [...DEFAULT_CURRENCIES],
   location: DEFAULT_LOCATION,
 };
 
-/** `PATCH /settings`: top-level keys are merged, `location` is replaced. */
-export type UpdateUserSettingsRequest = Partial<UserSettings>;
+// `currencies` changes only through `POST`/`DELETE /settings/currencies`:
+// removing one converts its transactions, which a plain write would skip.
+type WritableUserSettings = Omit<UserSettings, 'currencies'>;
 
-/** `PUT /settings`: every key is required. */
-export type ReplaceUserSettingsRequest = UserSettings;
+/** `PATCH /settings`: top-level keys are merged, `location` is replaced. */
+export type UpdateUserSettingsRequest = Partial<WritableUserSettings>;
+
+/** `PUT /settings`: every key but `currencies` is required. */
+export type ReplaceUserSettingsRequest = WritableUserSettings;
+
+/** `POST /settings/currencies` */
+export interface AddCurrencyRequest {
+  code: Currency;
+}
+
+/** `DELETE /settings/currencies/:code` */
+export interface RemoveCurrencyResult {
+  settings: UserSettings;
+  /** How many transactions were converted to RSD. */
+  convertedCount: number;
+}
 
 export interface ChangePasswordRequest {
   currentPassword: string;

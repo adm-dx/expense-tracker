@@ -391,7 +391,8 @@ describe('home screen journey', () => {
     const CURRENCIES: Currency[] = ['RSD', 'EUR', 'HUF'];
     /** Units of `currency` per 1 RSD, from the fake provider's rates. */
     const perRsd = (currency: Currency) =>
-      Number(TEST_RATES[currency]) / Number(TEST_RATES.RSD);
+      Number(TEST_RATES[currency as keyof typeof TEST_RATES]) /
+      Number(TEST_RATES.RSD);
 
     it('records transactions in euros and forints as entered', async () => {
       const drafts = [

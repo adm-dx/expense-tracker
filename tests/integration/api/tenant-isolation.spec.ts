@@ -231,7 +231,12 @@ describe("one user can't reach another user's data", () => {
       theme: 'dark',
       colorScheme: 'green',
       currency: 'EUR',
-      location: { mode: 'manual', name: 'Novi Sad, RS', lat: 45.25, lon: 19.84 },
+      location: {
+        mode: 'manual',
+        name: 'Novi Sad, RS',
+        lat: 45.25,
+        lon: 19.84,
+      },
     };
     await server()
       .put('/settings')
@@ -247,6 +252,29 @@ describe("one user can't reach another user's data", () => {
       .get('/settings')
       .set(...bearer(alice))
       .expect(200);
-    expect(response.body).toEqual(aliceSettings);
+    expect(response.body).toEqual({
+      ...aliceSettings,
+      currencies: ['RSD', 'EUR', 'HUF'],
+    });
+  });
+
+  it("doesn't convert someone else's transactions when removing a currency", async () => {
+    await server()
+      .patch(`/transactions/${aliceTransactionId}`)
+      .set(...bearer(alice))
+      .send({ currency: 'EUR' })
+      .expect(200);
+
+    const response = await server()
+      .delete('/settings/currencies/EUR')
+      .set(...bearer(bob))
+      .expect(200);
+
+    expect(response.body.convertedCount).toBe(0);
+    expect(
+      await prisma.transaction.findUniqueOrThrow({
+        where: { id: aliceTransactionId },
+      })
+    ).toMatchObject({ currency: 'EUR' });
   });
 });

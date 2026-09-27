@@ -1,9 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import {
-  Currency,
-  Prisma,
-  TransactionType,
-} from '@api/generated/prisma/client';
+import { Prisma, TransactionType } from '@api/generated/prisma/client';
 import { TransactionsRepository } from '@api/modules/transactions/transactions.repository';
 import type { TransactionFilters } from '@api/modules/transactions/transactions.repository';
 import { createTestApp } from '@tests/setup/app';
@@ -325,7 +321,7 @@ describe('sumByTypeAndCategory', () => {
       userId: user.id,
       categoryId: category.id,
       amount: '7.00',
-      currency: Currency.EUR,
+      currency: 'EUR',
       date: '2026-09-15T00:00:00.000Z',
     });
 
@@ -337,8 +333,8 @@ describe('sumByTypeAndCategory', () => {
         .map((r) => [r.currency, r.amount.toFixed(2)])
         .sort(([a], [b]) => String(a).localeCompare(String(b)))
     ).toEqual([
-      [Currency.EUR, '7.00'],
-      [Currency.RSD, '5.30'],
+      ['EUR', '7.00'],
+      ['RSD', '5.30'],
     ]);
   });
 

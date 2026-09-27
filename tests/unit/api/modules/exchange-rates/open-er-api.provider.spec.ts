@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { Currency } from '@api/generated/prisma/client';
+
 import {
   DEFAULT_EXCHANGE_RATES_URL,
   OpenErApiProvider,
@@ -15,7 +15,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 const SUCCESS = {
   result: 'success',
   time_last_update_unix: 1790380952,
-  rates: { EUR: 1, RSD: 117.479499, HUF: 364.893326, USD: 1.17 },
+  rates: { EUR: 1, RSD: 117.479499, HUF: 364.893326, USD: 1.17, XYZ: 5 },
 };
 
 describe('OpenErApiProvider', () => {
@@ -34,7 +34,7 @@ describe('OpenErApiProvider', () => {
     fetchMock.mockRestore();
   });
 
-  it('requests EUR-based rates and keeps only the supported currencies', async () => {
+  it('requests EUR-based rates and keeps only the catalog currencies', async () => {
     fetchMock.mockResolvedValue(jsonResponse(SUCCESS));
 
     const snapshot = await makeProvider().fetchLatest();
@@ -43,10 +43,15 @@ describe('OpenErApiProvider', () => {
       `${DEFAULT_EXCHANGE_RATES_URL}/latest/EUR`,
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
-    expect(snapshot.base).toBe(Currency.EUR);
+    expect(snapshot.base).toBe('EUR');
     expect(snapshot.date).toEqual(new Date(1790380952 * 1000));
-    expect([...snapshot.rates.keys()].sort()).toEqual(['EUR', 'HUF', 'RSD']);
-    expect(snapshot.rates.get(Currency.RSD)?.toString()).toBe('117.479499');
+    expect([...snapshot.rates.keys()].sort()).toEqual([
+      'EUR',
+      'HUF',
+      'RSD',
+      'USD',
+    ]);
+    expect(snapshot.rates.get('RSD')?.toString()).toBe('117.479499');
   });
 
   it('uses EXCHANGE_RATES_URL when it is set', async () => {
@@ -70,7 +75,7 @@ describe('OpenErApiProvider', () => {
     );
   });
 
-  it('rejects a response without one of the currencies', async () => {
+  it('rejects a response without RSD', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ ...SUCCESS, rates: { EUR: 1, HUF: 364.89 } })
     );
@@ -78,6 +83,16 @@ describe('OpenErApiProvider', () => {
     await expect(makeProvider().fetchLatest()).rejects.toThrow(
       'no rate for RSD'
     );
+  });
+
+  it('leaves out any other currency the response lacks', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ ...SUCCESS, rates: { EUR: 1, RSD: 117.5 } })
+    );
+
+    const snapshot = await makeProvider().fetchLatest();
+
+    expect([...snapshot.rates.keys()].sort()).toEqual(['EUR', 'RSD']);
   });
 
   it('rejects a non-2xx response', async () => {

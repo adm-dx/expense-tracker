@@ -1,9 +1,25 @@
-import { Currency, Prisma } from '@api/generated/prisma/client';
+import { CURRENCIES, type Currency } from '@expense-tracker/types';
+import { Prisma } from '@api/generated/prisma/client';
 import type { ExchangeRatesSnapshot } from '@api/modules/exchange-rates/contracts';
 import { ExchangeRatesProvider } from '@api/modules/exchange-rates/providers/exchange-rates.provider';
 
-/** Round numbers so expected conversions are easy to work out by hand. */
-export const TEST_RATES = { EUR: '1', RSD: '100', HUF: '400' } as const;
+/**
+ * Round numbers so expected conversions are easy to work out by hand. Every
+ * other code in the catalog costs `OTHER_TEST_RATE` per euro.
+ */
+export const TEST_RATES = {
+  EUR: '1',
+  RSD: '100',
+  HUF: '400',
+  USD: '2',
+} as const;
+export const OTHER_TEST_RATE = '10';
+
+function testRate(code: Currency): string {
+  return (
+    (TEST_RATES as Partial<Record<Currency, string>>)[code] ?? OTHER_TEST_RATE
+  );
+}
 export const TEST_RATES_DATE = '2026-09-26T00:00:00.000Z';
 
 /**
@@ -20,13 +36,10 @@ export class FakeExchangeRatesProvider extends ExchangeRatesProvider {
       return Promise.reject(new Error('Simulated provider outage'));
     }
     return Promise.resolve({
-      base: Currency.EUR,
+      base: 'EUR',
       date: new Date(TEST_RATES_DATE),
       rates: new Map(
-        Object.entries(TEST_RATES).map(([code, rate]) => [
-          code as Currency,
-          new Prisma.Decimal(rate),
-        ])
+        CURRENCIES.map((code) => [code, new Prisma.Decimal(testRate(code))])
       ),
     });
   }

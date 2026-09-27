@@ -1,7 +1,7 @@
+import type { Currency } from '@expense-tracker/types';
 import { Injectable } from '@nestjs/common';
 import {
   Category,
-  Currency,
   Prisma,
   Transaction,
   TransactionType,
@@ -89,9 +89,34 @@ export class TransactionsRepository {
     return groups.map((group) => ({
       type: group.type,
       categoryId: group.categoryId,
-      currency: group.currency,
+      // The column is TEXT, but only validated codes are ever written to it.
+      currency: group.currency as Currency,
       amount: group._sum.amount ?? new Prisma.Decimal(0),
     }));
+  }
+
+  async countByCurrency(userId: string, currency: Currency): Promise<number> {
+    return this.prisma.transaction.count({ where: { userId, currency } });
+  }
+
+  /**
+   * Moves every transaction of the user from one currency to another in one
+   * statement, with the same formula as `convertAmount`, rounded to cents.
+   * Returns how many rows changed.
+   */
+  async convertCurrency(
+    userId: string,
+    from: Currency,
+    to: Currency,
+    fromRate: Prisma.Decimal,
+    toRate: Prisma.Decimal
+  ): Promise<number> {
+    return this.prisma.$executeRaw`
+      UPDATE "transactions"
+      SET "amount" = ROUND("amount" * ${toRate.toString()}::numeric / ${fromRate.toString()}::numeric, 2),
+          "currency" = ${to}
+      WHERE "userId" = ${userId} AND "currency" = ${from}
+    `;
   }
 
   private buildWhere(

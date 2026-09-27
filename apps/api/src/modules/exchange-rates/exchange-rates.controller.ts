@@ -1,11 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
-import { Currency } from '../../generated/prisma/client';
+import type { Currency } from '@expense-tracker/types';
 import { ExchangeRatesService } from './exchange-rates.service';
 
 export interface PublicExchangeRates {
   base: Currency;
   date: Date;
-  rates: Record<Currency, string>;
+  rates: Partial<Record<Currency, string>>;
 }
 
 @Controller('exchange-rates')
@@ -15,7 +15,7 @@ export class ExchangeRatesController {
   @Get()
   async get(): Promise<PublicExchangeRates> {
     const snapshot = await this.exchangeRatesService.getRates();
-    const rates = {} as Record<Currency, string>;
+    const rates: Partial<Record<Currency, string>> = {};
     for (const [code, rate] of snapshot.rates) {
       rates[code] = rate.toString();
     }

@@ -1,8 +1,11 @@
 import {
   COLOR_SCHEMES,
   CURRENCIES,
+  DEFAULT_CURRENCIES,
+  DEFAULT_CURRENCY,
   DEFAULT_USER_SETTINGS,
   THEMES,
+  type Currency,
   type LocationSetting,
   type UserSettings,
 } from '@expense-tracker/types';
@@ -56,17 +59,34 @@ function readLocation(value: unknown): LocationSetting | undefined {
  * no longer valid (a removed color scheme, a hand-edited row) falls back to
  * its default, so an old document never breaks the response.
  */
+/**
+ * Known codes in their stored order, without repeats, always with RSD (first
+ * if it had to be added back). Not an array at all: the default list.
+ */
+function readCurrencies(value: unknown): Currency[] {
+  if (!Array.isArray(value)) return [...DEFAULT_CURRENCIES];
+  const currencies = [
+    ...new Set(value.filter((code) => isOneOf(CURRENCIES, code))),
+  ];
+  return currencies.includes(DEFAULT_CURRENCY)
+    ? currencies
+    : [DEFAULT_CURRENCY, ...currencies];
+}
+
 export function sanitizeSettings(stored: unknown): UserSettings {
   const source = isRecord(stored) ? stored : {};
   const defaults = DEFAULT_USER_SETTINGS;
+  const currencies = readCurrencies(source.currencies);
   return {
     theme: isOneOf(THEMES, source.theme) ? source.theme : defaults.theme,
     colorScheme: isOneOf(COLOR_SCHEMES, source.colorScheme)
       ? source.colorScheme
       : defaults.colorScheme,
-    currency: isOneOf(CURRENCIES, source.currency)
+    // Only an enabled currency can be the display one.
+    currency: isOneOf(currencies, source.currency)
       ? source.currency
       : defaults.currency,
+    currencies,
     location: readLocation(source.location) ?? { ...defaults.location },
   };
 }

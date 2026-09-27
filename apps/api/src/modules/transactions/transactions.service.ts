@@ -2,10 +2,15 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 import {
-  Currency,
+  DEFAULT_CURRENCY,
+  type Currency,
+  type UserSettings,
+} from '@expense-tracker/types';
+import {
   Prisma,
   Transaction,
   TransactionType,
@@ -15,6 +20,7 @@ import {
   ExchangeRatesSnapshot,
   GetExchangeRatesQuery,
 } from '../exchange-rates/contracts';
+import { GetUserSettingsQuery } from '../settings/contracts';
 import {
   PublicTransaction,
   TransactionCategorySummary,
@@ -34,7 +40,11 @@ import {
 import { SummaryQuery } from './dto/summary.query';
 
 const FOREIGN_KEY_VIOLATION = 'P2003';
-export const DEFAULT_CURRENCY: Currency = Currency.RSD;
+
+// The column is TEXT, but only validated codes are ever written to it.
+function storedCurrency(transaction: Transaction): Currency {
+  return transaction.currency as Currency;
+}
 
 @Injectable()
 export class TransactionsService {
@@ -64,7 +74,7 @@ export class TransactionsService {
     );
     const currency = query.currency ?? DEFAULT_CURRENCY;
     const rates = await this.loadRatesIfNeeded(
-      items.map((transaction) => transaction.currency),
+      items.map(storedCurrency),
       currency
     );
     return {
@@ -72,7 +82,7 @@ export class TransactionsService {
         ...this.toPublic(transaction),
         convertedAmount: this.convert(
           transaction.amount,
-          transaction.currency,
+          storedCurrency(transaction),
           currency,
           rates
         ).toFixed(2),
@@ -94,6 +104,7 @@ export class TransactionsService {
     dto: CreateTransactionDto
   ): Promise<PublicTransaction> {
     await this.assertCategoryOwned(userId, dto.categoryId);
+    await this.assertCurrencyEnabled(userId, dto.currency);
 
     return this.withCategoryHandling(async () => {
       const transaction = await this.transactionsRepository.create({
@@ -118,6 +129,9 @@ export class TransactionsService {
     if (dto.categoryId !== undefined) {
       await this.assertCategoryOwned(userId, dto.categoryId);
     }
+    if (dto.currency !== undefined) {
+      await this.assertCurrencyEnabled(userId, dto.currency);
+    }
 
     const data: Prisma.TransactionUncheckedUpdateInput = {};
     if (dto.amount !== undefined) data.amount = this.toDecimal(dto.amount);
@@ -138,6 +152,43 @@ export class TransactionsService {
   async remove(userId: string, id: string): Promise<void> {
     await this.findOwned(userId, id);
     await this.transactionsRepository.delete(id);
+  }
+
+  /**
+   * Converts the user's transactions in `from` to `to` at today's rates; see
+   * `ConvertTransactionsCurrencyCommand`. Returns how many were converted.
+   */
+  async convertCurrency(
+    userId: string,
+    from: Currency,
+    to: Currency
+  ): Promise<number> {
+    if (from === to) return 0;
+    // Nothing to convert: don't fail on a rates outage for nothing.
+    const count = await this.transactionsRepository.countByCurrency(
+      userId,
+      from
+    );
+    if (count === 0) return 0;
+
+    const rates = await this.queryBus.execute<
+      GetExchangeRatesQuery,
+      ExchangeRatesSnapshot
+    >(new GetExchangeRatesQuery());
+    const fromRate = rates.rates.get(from);
+    const toRate = rates.rates.get(to);
+    if (!fromRate || !toRate) {
+      throw new ServiceUnavailableException(
+        `No exchange rate for ${fromRate ? to : from}`
+      );
+    }
+    return this.transactionsRepository.convertCurrency(
+      userId,
+      from,
+      to,
+      fromRate,
+      toRate
+    );
   }
 
   async summary(
@@ -219,13 +270,29 @@ export class TransactionsService {
     return {
       id: transaction.id,
       amount: transaction.amount.toFixed(2),
-      currency: transaction.currency,
+      currency: storedCurrency(transaction),
       type: transaction.type,
       description: transaction.description,
       date: transaction.date,
       categoryId: transaction.categoryId,
       createdAt: transaction.createdAt,
     };
+  }
+
+  /** A transaction can only be written in one of the user's currencies. */
+  private async assertCurrencyEnabled(
+    userId: string,
+    currency: Currency
+  ): Promise<void> {
+    const settings = await this.queryBus.execute<
+      GetUserSettingsQuery,
+      UserSettings
+    >(new GetUserSettingsQuery(userId));
+    if (!settings.currencies.includes(currency)) {
+      throw new BadRequestException(
+        `${currency} is not one of your currencies; add it in the settings first`
+      );
+    }
   }
 
   private async findOwned(userId: string, id: string): Promise<Transaction> {

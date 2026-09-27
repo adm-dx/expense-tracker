@@ -1,5 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { Currency, Prisma } from '@api/generated/prisma/client';
+import { Prisma } from '@api/generated/prisma/client';
 import {
   convertAmount,
   ExchangeRatesSnapshot,
@@ -12,12 +12,12 @@ import { ExchangeRatesProvider } from '@api/modules/exchange-rates/providers/exc
 
 function makeSnapshot(rsd = '117.5'): ExchangeRatesSnapshot {
   return {
-    base: Currency.EUR,
+    base: 'EUR',
     date: new Date('2026-09-26T00:00:00.000Z'),
     rates: new Map([
-      [Currency.EUR, new Prisma.Decimal('1')],
-      [Currency.RSD, new Prisma.Decimal(rsd)],
-      [Currency.HUF, new Prisma.Decimal('400')],
+      ['EUR', new Prisma.Decimal('1')],
+      ['RSD', new Prisma.Decimal(rsd)],
+      ['HUF', new Prisma.Decimal('400')],
     ]),
   };
 }
@@ -54,7 +54,7 @@ describe('ExchangeRatesService', () => {
     const rates = await service.getRates();
 
     expect(provider.fetchLatest).toHaveBeenCalledTimes(2);
-    expect(rates.rates.get(Currency.RSD)?.toString()).toBe('118');
+    expect(rates.rates.get('RSD')?.toString()).toBe('118');
   });
 
   it('shares one request between concurrent callers', async () => {
@@ -106,7 +106,7 @@ describe('ExchangeRatesService', () => {
     provider.fetchLatest.mockResolvedValue(makeSnapshot('118'));
     const rates = await service.getRates();
     expect(provider.fetchLatest).toHaveBeenCalledTimes(3);
-    expect(rates.rates.get(Currency.RSD)?.toString()).toBe('118');
+    expect(rates.rates.get('RSD')?.toString()).toBe('118');
   });
 });
 
@@ -115,19 +115,12 @@ describe('convertAmount', () => {
 
   it('returns the amount unchanged for the same currency', () => {
     const amount = new Prisma.Decimal('12.34');
-    expect(convertAmount(amount, Currency.HUF, Currency.HUF, snapshot)).toBe(
-      amount
-    );
+    expect(convertAmount(amount, 'HUF', 'HUF', snapshot)).toBe(amount);
   });
 
   it('converts from the base currency', () => {
     expect(
-      convertAmount(
-        new Prisma.Decimal('10'),
-        Currency.EUR,
-        Currency.RSD,
-        snapshot
-      ).toString()
+      convertAmount(new Prisma.Decimal('10'), 'EUR', 'RSD', snapshot).toString()
     ).toBe('1175');
   });
 
@@ -135,8 +128,8 @@ describe('convertAmount', () => {
     expect(
       convertAmount(
         new Prisma.Decimal('400'),
-        Currency.HUF,
-        Currency.RSD,
+        'HUF',
+        'RSD',
         snapshot
       ).toString()
     ).toBe('117.5');
@@ -144,12 +137,7 @@ describe('convertAmount', () => {
 
   it('does not round', () => {
     expect(
-      convertAmount(
-        new Prisma.Decimal('1'),
-        Currency.RSD,
-        Currency.EUR,
-        snapshot
-      ).toFixed(6)
+      convertAmount(new Prisma.Decimal('1'), 'RSD', 'EUR', snapshot).toFixed(6)
     ).toBe('0.008511');
   });
 });

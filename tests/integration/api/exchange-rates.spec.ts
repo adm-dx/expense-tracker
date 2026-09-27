@@ -1,9 +1,10 @@
 import { INestApplication } from '@nestjs/common';
-import type {
-  Category,
-  ExchangeRates,
-  TransactionsPage,
-  TransactionSummary,
+import {
+  CURRENCIES,
+  type Category,
+  type ExchangeRates,
+  type TransactionsPage,
+  type TransactionSummary,
 } from '@expense-tracker/types';
 import {
   bearer,
@@ -87,8 +88,9 @@ describe('GET /exchange-rates', () => {
     expect(rates).toEqual({
       base: 'EUR',
       date: TEST_RATES_DATE,
-      rates: TEST_RATES,
+      rates: expect.objectContaining(TEST_RATES),
     });
+    expect(Object.keys(rates.rates).sort()).toEqual([...CURRENCIES].sort());
   });
 });
 

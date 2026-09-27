@@ -1,13 +1,6 @@
 import { Type } from 'class-transformer';
-import {
-  IsEnum,
-  IsInt,
-  IsISO8601,
-  IsOptional,
-  Max,
-  Min,
-} from 'class-validator';
-import { Currency } from '../../../generated/prisma/client';
+import { IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import { CURRENCIES, type Currency } from '@expense-tracker/types';
 
 export class SummaryQuery {
   @IsOptional()
@@ -34,6 +27,6 @@ export class SummaryQuery {
 
   /** Currency of the totals; defaults to RSD. */
   @IsOptional()
-  @IsEnum(Currency)
+  @IsIn(CURRENCIES)
   currency?: Currency;
 }
