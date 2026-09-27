@@ -63,6 +63,7 @@ export {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -72,3 +73,4 @@ export {
   SegmentedControl,
   type SegmentedControlOption,
 } from './segmented-control';
+export { PeriodPicker } from './period-picker';
