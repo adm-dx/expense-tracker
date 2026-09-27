@@ -1,4 +1,5 @@
-import { Currency, TransactionType } from '../../../generated/prisma/client';
+import { CURRENCIES, type Currency } from '@expense-tracker/types';
+import { TransactionType } from '../../../generated/prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsEnum,
@@ -45,8 +46,8 @@ export class ListTransactionsQuery {
   @IsIn(TRANSACTION_PAGE_SIZES)
   pageSize?: number;
 
-  /** Display currency for `convertedAmount`; defaults to RSD. */
+  /** Display currency for `convertedAmount`; defaults to EUR. */
   @IsOptional()
-  @IsEnum(Currency)
+  @IsIn(CURRENCIES)
   currency?: Currency;
 }

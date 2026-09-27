@@ -1,9 +1,11 @@
 'use client';
 
-import { CURRENCIES, type Currency } from '@expense-tracker/types';
+import type { Currency } from '@expense-tracker/types';
 import { toast } from 'sonner';
-import { useSettingsStore } from '@/entities/settings';
+import { useEnabledCurrencies, useSettingsStore } from '@/entities/settings';
+import { isCurrency } from '@/shared/lib/currency';
 import { getErrorMessage } from '@/shared/lib/error';
+import { formatCurrency } from '@/shared/lib/format';
 import {
   Select,
   SelectContent,
@@ -12,18 +14,18 @@ import {
   SelectValue,
 } from '@/shared/ui';
 
-function isCurrency(value: string): value is Currency {
-  return (CURRENCIES as readonly string[]).includes(value);
-}
-
 interface DefaultCurrencySelectProps {
   value: Currency;
   id?: string;
 }
 
 /** The same setting as the switcher in the header. */
-export function DefaultCurrencySelect({ value, id }: DefaultCurrencySelectProps) {
+export function DefaultCurrencySelect({
+  value,
+  id,
+}: DefaultCurrencySelectProps) {
   const update = useSettingsStore((state) => state.update);
+  const currencies = useEnabledCurrencies();
 
   return (
     <Select
@@ -35,13 +37,13 @@ export function DefaultCurrencySelect({ value, id }: DefaultCurrencySelectProps)
         });
       }}
     >
-      <SelectTrigger id={id} className="w-32" aria-label="Default currency">
+      <SelectTrigger id={id} className="w-40" aria-label="Default currency">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {CURRENCIES.map((code) => (
+        {currencies.map((code) => (
           <SelectItem key={code} value={code}>
-            {code}
+            {formatCurrency(code)}
           </SelectItem>
         ))}
       </SelectContent>

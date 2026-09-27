@@ -45,9 +45,9 @@ export function ResetSettingsButton() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reset all settings?</AlertDialogTitle>
             <AlertDialogDescription>
-              The theme, currency and location go back to their defaults
-              (system theme in slate, RSD, weather for Belgrade). Your password and
-              your data stay as they are.
+              The theme, currency and location go back to their defaults (system
+              theme in slate, EUR, weather for Belgrade). Your password, your
+              currencies and your data stay as they are.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

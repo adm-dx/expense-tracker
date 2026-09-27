@@ -26,6 +26,7 @@ const SAVED: UserSettings = {
   theme: 'dark',
   colorScheme: 'green',
   currency: 'EUR',
+  currencies: ['RSD', 'EUR', 'HUF'],
   location: { mode: 'auto' },
 };
 
@@ -48,9 +49,10 @@ describe('SettingsSync', () => {
       expect(document.documentElement.dataset.scheme).toBe('green')
     );
     expect(document.documentElement).toHaveClass('dark');
-    expect(JSON.parse(localStorage.getItem(THEME_STORAGE_KEY) ?? '')).toEqual(
-      { theme: 'dark', colorScheme: 'green' }
-    );
+    expect(JSON.parse(localStorage.getItem(THEME_STORAGE_KEY) ?? '')).toEqual({
+      theme: 'dark',
+      colorScheme: 'green',
+    });
   });
 
   it('feeds the currency to the display currency store', async () => {
@@ -58,13 +60,17 @@ describe('SettingsSync', () => {
 
     render(<SettingsSync />);
 
-    await waitFor(() => expect(useCurrencyStore.getState().currency).toBe('EUR'));
+    await waitFor(() =>
+      expect(useCurrencyStore.getState().currency).toBe('EUR')
+    );
   });
 
   it('follows later changes', async () => {
     api.get.mockResolvedValue(SAVED);
     render(<SettingsSync />);
-    await waitFor(() => expect(useCurrencyStore.getState().currency).toBe('EUR'));
+    await waitFor(() =>
+      expect(useCurrencyStore.getState().currency).toBe('EUR')
+    );
 
     act(() => {
       useSettingsStore.setState({
@@ -82,7 +88,9 @@ describe('SettingsSync', () => {
 
     render(<SettingsSync />);
 
-    await waitFor(() => expect(useSettingsStore.getState().status).toBe('error'));
+    await waitFor(() =>
+      expect(useSettingsStore.getState().status).toBe('error')
+    );
     expect(document.documentElement.dataset.scheme).toBe('violet');
   });
 });
@@ -94,8 +102,10 @@ describe('DefaultCurrencySelect', () => {
     const user = userEvent.setup();
     render(<DefaultCurrencySelect value="EUR" />);
 
-    await user.click(screen.getByRole('combobox', { name: 'Default currency' }));
-    await user.click(await screen.findByRole('option', { name: 'HUF' }));
+    await user.click(
+      screen.getByRole('combobox', { name: 'Default currency' })
+    );
+    await user.click(await screen.findByRole('option', { name: 'HUF (Ft)' }));
 
     expect(api.update).toHaveBeenCalledWith({ currency: 'HUF' });
   });

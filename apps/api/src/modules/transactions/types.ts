@@ -1,4 +1,5 @@
-import { Currency, TransactionType } from '../../generated/prisma/client';
+import type { Currency } from '@expense-tracker/types';
+import { TransactionType } from '../../generated/prisma/client';
 
 export interface PublicTransaction {
   id: string;

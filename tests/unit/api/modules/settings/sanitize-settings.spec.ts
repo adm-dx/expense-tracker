@@ -1,4 +1,7 @@
-import { DEFAULT_LOCATION, DEFAULT_USER_SETTINGS } from '@expense-tracker/types';
+import {
+  DEFAULT_LOCATION,
+  DEFAULT_USER_SETTINGS,
+} from '@expense-tracker/types';
 import {
   roundCoordinate,
   sanitizeSettings,
@@ -17,7 +20,13 @@ describe('sanitizeSettings', () => {
       theme: 'dark',
       colorScheme: 'violet',
       currency: 'EUR',
-      location: { mode: 'manual', name: 'Novi Sad, RS', lat: 45.25, lon: 19.84 },
+      currencies: ['RSD', 'EUR', 'GBP'],
+      location: {
+        mode: 'manual',
+        name: 'Novi Sad, RS',
+        lat: 45.25,
+        lon: 19.84,
+      },
     };
 
     expect(sanitizeSettings(stored)).toEqual(stored);
@@ -28,10 +37,31 @@ describe('sanitizeSettings', () => {
       sanitizeSettings({
         theme: 'sepia',
         colorScheme: 'violet',
-        currency: 'USD',
+        currency: 'XYZ',
         location: { mode: 'manual', name: 'Nowhere' },
       })
     ).toEqual({ ...DEFAULT_USER_SETTINGS, colorScheme: 'violet' });
+  });
+
+  it('reads a missing currency list as the default one, EUR alone', () => {
+    expect(sanitizeSettings({ currency: 'HUF' })).toEqual({
+      ...DEFAULT_USER_SETTINGS,
+      currency: 'EUR',
+      currencies: ['EUR'],
+    });
+  });
+
+  it('drops unknown and repeated codes and puts EUR back first', () => {
+    expect(
+      sanitizeSettings({ currencies: ['RSD', 'XYZ', 'RSD', 42, 'GBP'] })
+        .currencies
+    ).toEqual(['EUR', 'RSD', 'GBP']);
+  });
+
+  it('shows EUR when the display currency is not enabled', () => {
+    expect(
+      sanitizeSettings({ currency: 'GBP', currencies: ['RSD', 'EUR'] }).currency
+    ).toBe('EUR');
   });
 
   it('drops keys it does not know', () => {

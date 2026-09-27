@@ -1,6 +1,6 @@
 'use client';
 
-import type { Transaction } from '@expense-tracker/types';
+import { CURRENCY_DETAILS, type Transaction } from '@expense-tracker/types';
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { DeleteTransactionDialog } from '@/features/transaction/delete';
@@ -101,7 +101,9 @@ export function TransactionsTable() {
               <TableHead>Description</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">
-                {itemsCurrency ? `Amount (${itemsCurrency})` : 'Amount'}
+                {itemsCurrency
+                  ? `Amount (${itemsCurrency} ${CURRENCY_DETAILS[itemsCurrency].symbol})`
+                  : 'Amount'}
               </TableHead>
               <TableHead className="w-[52px]">
                 <span className="sr-only">Actions</span>

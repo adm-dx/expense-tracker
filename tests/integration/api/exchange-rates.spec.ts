@@ -1,13 +1,15 @@
 import { INestApplication } from '@nestjs/common';
-import type {
-  Category,
-  ExchangeRates,
-  TransactionsPage,
-  TransactionSummary,
+import {
+  CURRENCIES,
+  type Category,
+  type ExchangeRates,
+  type TransactionsPage,
+  type TransactionSummary,
 } from '@expense-tracker/types';
 import {
   bearer,
   createTestApp,
+  enableCurrencies,
   registerUser,
   request,
   TestUser,
@@ -34,6 +36,8 @@ beforeAll(async () => {
   app = await createTestApp(provider);
   await resetDatabase();
   user = await registerUser(app);
+  // A new user has only EUR; these tests convert between all three.
+  await enableCurrencies(app, user, ['RSD', 'HUF']);
   const categories = await expectJson<Category[]>(
     request(app.getHttpServer())
       .get('/categories')
@@ -87,8 +91,9 @@ describe('GET /exchange-rates', () => {
     expect(rates).toEqual({
       base: 'EUR',
       date: TEST_RATES_DATE,
-      rates: TEST_RATES,
+      rates: expect.objectContaining(TEST_RATES),
     });
+    expect(Object.keys(rates.rates).sort()).toEqual([...CURRENCIES].sort());
   });
 });
 

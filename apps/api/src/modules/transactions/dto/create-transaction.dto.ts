@@ -1,6 +1,8 @@
-import { Currency, TransactionType } from '../../../generated/prisma/client';
+import { CURRENCIES, type Currency } from '@expense-tracker/types';
+import { TransactionType } from '../../../generated/prisma/client';
 import {
   IsEnum,
+  IsIn,
   IsISO8601,
   IsNotEmpty,
   IsNumber,
@@ -21,7 +23,7 @@ export class CreateTransactionDto {
   @Max(MAX_AMOUNT)
   amount!: number;
 
-  @IsEnum(Currency)
+  @IsIn(CURRENCIES)
   currency!: Currency;
 
   @IsEnum(TransactionType)

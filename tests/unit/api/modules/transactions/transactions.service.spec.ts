@@ -2,14 +2,15 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 import {
-  Currency,
-  Prisma,
-  TransactionType,
-} from '@api/generated/prisma/client';
+  DEFAULT_USER_SETTINGS,
+  type UserSettings,
+} from '@expense-tracker/types';
+import { Prisma, TransactionType } from '@api/generated/prisma/client';
 import {
   ExchangeRatesSnapshot,
   GetExchangeRatesQuery,
 } from '@api/modules/exchange-rates/contracts';
+import { GetUserSettingsQuery } from '@api/modules/settings/contracts';
 import { TransactionsService } from '@api/modules/transactions/transactions.service';
 import { TransactionsRepository } from '@api/modules/transactions/transactions.repository';
 
@@ -18,7 +19,7 @@ function makeTransaction(overrides: Partial<Record<string, unknown>> = {}) {
     id: 'tx-1',
     userId: 'user-1',
     amount: new Prisma.Decimal('12.50'),
-    currency: Currency.RSD,
+    currency: 'RSD',
     type: TransactionType.EXPENSE,
     description: 'Lunch',
     date: new Date('2026-09-10T00:00:00.000Z'),
@@ -43,13 +44,19 @@ function makeCategory(overrides: Partial<Record<string, unknown>> = {}) {
 
 // 1 EUR = 117.5 RSD = 400 HUF.
 const RATES: ExchangeRatesSnapshot = {
-  base: Currency.EUR,
+  base: 'EUR',
   date: new Date('2026-09-26T00:00:00.000Z'),
   rates: new Map([
-    [Currency.EUR, new Prisma.Decimal('1')],
-    [Currency.RSD, new Prisma.Decimal('117.5')],
-    [Currency.HUF, new Prisma.Decimal('400')],
+    ['EUR', new Prisma.Decimal('1')],
+    ['RSD', new Prisma.Decimal('117.5')],
+    ['HUF', new Prisma.Decimal('400')],
   ]),
+};
+
+// The defaults plus RSD and HUF, the currencies these tests use.
+const SETTINGS: UserSettings = {
+  ...DEFAULT_USER_SETTINGS,
+  currencies: ['EUR', 'RSD', 'HUF'],
 };
 
 describe('TransactionsService', () => {
@@ -67,8 +74,18 @@ describe('TransactionsService', () => {
       update: jest.fn(),
       delete: jest.fn(),
       sumByTypeAndCategory: jest.fn(),
+      countByCurrency: jest.fn(),
+      convertCurrency: jest.fn(),
     } as unknown as jest.Mocked<TransactionsRepository>;
-    queryBus = { execute: jest.fn().mockResolvedValue(RATES) };
+    queryBus = {
+      execute: jest
+        .fn()
+        .mockImplementation((query: unknown) =>
+          Promise.resolve(
+            query instanceof GetUserSettingsQuery ? SETTINGS : RATES
+          )
+        ),
+    };
     service = new TransactionsService(
       repository,
       queryBus as unknown as QueryBus
@@ -114,7 +131,7 @@ describe('TransactionsService', () => {
         total: 0,
         page: 1,
         pageSize: 10,
-        currency: Currency.RSD,
+        currency: 'EUR',
         ratesDate: null,
       });
     });
@@ -161,7 +178,7 @@ describe('TransactionsService', () => {
       await expect(
         service.create('user-2', {
           amount: 10,
-          currency: Currency.RSD,
+          currency: 'RSD',
           type: TransactionType.EXPENSE,
           date: '2026-09-10',
           categoryId: 'cat-1',
@@ -176,7 +193,7 @@ describe('TransactionsService', () => {
 
       await service.create('user-1', {
         amount: 12.5,
-        currency: Currency.EUR,
+        currency: 'EUR',
         type: TransactionType.EXPENSE,
         description: '  Lunch ',
         date: '2026-09-10',
@@ -186,7 +203,7 @@ describe('TransactionsService', () => {
       expect(repository.create).toHaveBeenCalledWith({
         userId: 'user-1',
         amount: new Prisma.Decimal('12.50'),
-        currency: Currency.EUR,
+        currency: 'EUR',
         type: TransactionType.EXPENSE,
         description: 'Lunch',
         date: new Date('2026-09-10'),
@@ -200,7 +217,7 @@ describe('TransactionsService', () => {
 
       await service.create('user-1', {
         amount: 1,
-        currency: Currency.RSD,
+        currency: 'RSD',
         type: TransactionType.INCOME,
         description: '   ',
         date: '2026-09-10',
@@ -210,6 +227,24 @@ describe('TransactionsService', () => {
       expect(repository.create).toHaveBeenCalledWith(
         expect.objectContaining({ description: null })
       );
+    });
+
+    it('rejects a currency the user has not enabled', async () => {
+      repository.findCategoryForUser.mockResolvedValue(makeCategory() as never);
+
+      await expect(
+        service.create('user-1', {
+          amount: 1,
+          currency: 'USD',
+          type: TransactionType.INCOME,
+          date: '2026-09-10',
+          categoryId: 'cat-1',
+        })
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(queryBus.execute).toHaveBeenCalledWith(
+        new GetUserSettingsQuery('user-1')
+      );
+      expect(repository.create).not.toHaveBeenCalled();
     });
 
     it('maps a P2003 foreign key violation to NotFoundException', async () => {
@@ -224,7 +259,7 @@ describe('TransactionsService', () => {
       await expect(
         service.create('user-1', {
           amount: 1,
-          currency: Currency.RSD,
+          currency: 'RSD',
           type: TransactionType.INCOME,
           date: '2026-09-10',
           categoryId: 'cat-1',
@@ -263,10 +298,60 @@ describe('TransactionsService', () => {
       });
 
       expect(repository.findCategoryForUser).not.toHaveBeenCalled();
+      expect(queryBus.execute).not.toHaveBeenCalled();
       expect(repository.update).toHaveBeenCalledWith('tx-1', {
         amount: new Prisma.Decimal('7.00'),
         description: null,
       });
+    });
+
+    it('rejects moving to a currency the user has not enabled', async () => {
+      repository.findByIdForUser.mockResolvedValue(makeTransaction() as never);
+
+      await expect(
+        service.update('user-1', 'tx-1', { currency: 'GBP' })
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('convertCurrency', () => {
+    it('converts with the day rates of both currencies', async () => {
+      repository.countByCurrency.mockResolvedValue(2);
+      repository.convertCurrency.mockResolvedValue(2);
+
+      await expect(
+        service.convertCurrency('user-1', 'EUR', 'RSD')
+      ).resolves.toBe(2);
+      expect(queryBus.execute).toHaveBeenCalledWith(
+        new GetExchangeRatesQuery()
+      );
+      expect(repository.convertCurrency).toHaveBeenCalledWith(
+        'user-1',
+        'EUR',
+        'RSD',
+        new Prisma.Decimal('1'),
+        new Prisma.Decimal('117.5')
+      );
+    });
+
+    it('asks for no rates when there is nothing to convert', async () => {
+      repository.countByCurrency.mockResolvedValue(0);
+
+      await expect(
+        service.convertCurrency('user-1', 'HUF', 'RSD')
+      ).resolves.toBe(0);
+      expect(queryBus.execute).not.toHaveBeenCalled();
+      expect(repository.convertCurrency).not.toHaveBeenCalled();
+    });
+
+    it('answers 503 without a rate for the currency', async () => {
+      repository.countByCurrency.mockResolvedValue(1);
+
+      await expect(
+        service.convertCurrency('user-1', 'GBP', 'RSD')
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(repository.convertCurrency).not.toHaveBeenCalled();
     });
   });
 
@@ -396,7 +481,7 @@ describe('TransactionsService', () => {
         totalExpense: '0.00',
         balance: '0.00',
         byCategory: [],
-        currency: Currency.RSD,
+        currency: 'EUR',
         ratesDate: null,
       });
       expect(queryBus.execute).not.toHaveBeenCalled();
@@ -407,19 +492,19 @@ describe('TransactionsService', () => {
         {
           type: TransactionType.EXPENSE,
           categoryId: 'cat-1',
-          currency: Currency.RSD,
+          currency: 'RSD',
           amount: new Prisma.Decimal('0.10'),
         },
         {
           type: TransactionType.EXPENSE,
           categoryId: 'cat-2',
-          currency: Currency.RSD,
+          currency: 'RSD',
           amount: new Prisma.Decimal('0.20'),
         },
         {
           type: TransactionType.INCOME,
           categoryId: 'cat-3',
-          currency: Currency.RSD,
+          currency: 'RSD',
           amount: new Prisma.Decimal('1000.00'),
         },
       ]);
@@ -429,7 +514,11 @@ describe('TransactionsService', () => {
         makeCategory({ id: 'cat-3', name: 'Salary' }),
       ] as never);
 
-      const result = await service.summary('user-1', { month: 9, year: 2026 });
+      const result = await service.summary('user-1', {
+        month: 9,
+        year: 2026,
+        currency: 'RSD',
+      });
 
       expect(result.totalIncome).toBe('1000.00');
       expect(result.totalExpense).toBe('0.30');
@@ -453,15 +542,15 @@ describe('TransactionsService', () => {
   describe('currency conversion', () => {
     it('lists a single-currency page without asking for rates', async () => {
       repository.findManyByUser.mockResolvedValue({
-        items: [makeTransaction({ currency: Currency.EUR })],
+        items: [makeTransaction({ currency: 'EUR' })],
         total: 1,
       } as never);
 
-      const result = await service.list('user-1', { currency: Currency.EUR });
+      const result = await service.list('user-1', { currency: 'EUR' });
 
       expect(queryBus.execute).not.toHaveBeenCalled();
       expect(result.items[0]?.convertedAmount).toBe('12.50');
-      expect(result).toMatchObject({ currency: Currency.EUR, ratesDate: null });
+      expect(result).toMatchObject({ currency: 'EUR', ratesDate: null });
     });
 
     it('converts every row of a mixed page and keeps the original amount', async () => {
@@ -470,23 +559,23 @@ describe('TransactionsService', () => {
           makeTransaction({
             id: 'tx-eur',
             amount: new Prisma.Decimal('10.00'),
-            currency: Currency.EUR,
+            currency: 'EUR',
           }),
           makeTransaction({
             id: 'tx-huf',
             amount: new Prisma.Decimal('1000.00'),
-            currency: Currency.HUF,
+            currency: 'HUF',
           }),
           makeTransaction({
             id: 'tx-rsd',
             amount: new Prisma.Decimal('50.00'),
-            currency: Currency.RSD,
+            currency: 'RSD',
           }),
         ],
         total: 3,
       } as never);
 
-      const result = await service.list('user-1', {});
+      const result = await service.list('user-1', { currency: 'RSD' });
 
       expect(queryBus.execute).toHaveBeenCalledWith(
         expect.any(GetExchangeRatesQuery)
@@ -498,13 +587,13 @@ describe('TransactionsService', () => {
           item.convertedAmount,
         ])
       ).toEqual([
-        ['10.00', Currency.EUR, '1175.00'],
+        ['10.00', 'EUR', '1175.00'],
         // 1000 HUF = 2.5 EUR = 293.75 RSD, a cross rate through EUR.
-        ['1000.00', Currency.HUF, '293.75'],
-        ['50.00', Currency.RSD, '50.00'],
+        ['1000.00', 'HUF', '293.75'],
+        ['50.00', 'RSD', '50.00'],
       ]);
       expect(result).toMatchObject({
-        currency: Currency.RSD,
+        currency: 'RSD',
         ratesDate: RATES.date,
       });
     });
@@ -512,32 +601,32 @@ describe('TransactionsService', () => {
     it('propagates an outage only when a conversion is needed', async () => {
       queryBus.execute.mockRejectedValue(new ServiceUnavailableException());
       repository.findManyByUser.mockResolvedValue({
-        items: [makeTransaction({ currency: Currency.EUR })],
+        items: [makeTransaction({ currency: 'EUR' })],
         total: 1,
       } as never);
 
       await expect(
-        service.list('user-1', { currency: Currency.RSD })
+        service.list('user-1', { currency: 'RSD' })
       ).rejects.toBeInstanceOf(ServiceUnavailableException);
       await expect(
-        service.list('user-1', { currency: Currency.EUR })
+        service.list('user-1', { currency: 'EUR' })
       ).resolves.toMatchObject({ total: 1 });
     });
 
     it('updates the currency without touching the amount', async () => {
       repository.findByIdForUser.mockResolvedValue(makeTransaction() as never);
       repository.update.mockResolvedValue(
-        makeTransaction({ currency: Currency.HUF }) as never
+        makeTransaction({ currency: 'HUF' }) as never
       );
 
       const result = await service.update('user-1', 'tx-1', {
-        currency: Currency.HUF,
+        currency: 'HUF',
       });
 
       expect(repository.update).toHaveBeenCalledWith('tx-1', {
-        currency: Currency.HUF,
+        currency: 'HUF',
       });
-      expect(result.currency).toBe(Currency.HUF);
+      expect(result.currency).toBe('HUF');
     });
 
     it('converts summary groups and merges a category across currencies', async () => {
@@ -545,25 +634,25 @@ describe('TransactionsService', () => {
         {
           type: TransactionType.EXPENSE,
           categoryId: 'cat-1',
-          currency: Currency.RSD,
+          currency: 'RSD',
           amount: new Prisma.Decimal('0.01'),
         },
         {
           type: TransactionType.EXPENSE,
           categoryId: 'cat-1',
-          currency: Currency.HUF,
+          currency: 'HUF',
           amount: new Prisma.Decimal('0.01'),
         },
         {
           type: TransactionType.EXPENSE,
           categoryId: 'cat-2',
-          currency: Currency.HUF,
+          currency: 'HUF',
           amount: new Prisma.Decimal('0.01'),
         },
         {
           type: TransactionType.INCOME,
           categoryId: 'cat-3',
-          currency: Currency.RSD,
+          currency: 'RSD',
           amount: new Prisma.Decimal('2350.00'),
         },
       ]);
@@ -576,10 +665,10 @@ describe('TransactionsService', () => {
       const result = await service.summary('user-1', {
         month: 9,
         year: 2026,
-        currency: Currency.EUR,
+        currency: 'EUR',
       });
 
-      expect(result.currency).toBe(Currency.EUR);
+      expect(result.currency).toBe('EUR');
       expect(result.ratesDate).toEqual(RATES.date);
       expect(result.totalIncome).toBe('20.00');
       expect(
@@ -596,7 +685,7 @@ describe('TransactionsService', () => {
         ['cat-1', 'cat-2', 'cat-3'].map((categoryId) => ({
           type: TransactionType.EXPENSE,
           categoryId,
-          currency: Currency.RSD,
+          currency: 'RSD',
           amount: new Prisma.Decimal('0.60'),
         }))
       );
@@ -605,7 +694,7 @@ describe('TransactionsService', () => {
       const result = await service.summary('user-1', {
         month: 9,
         year: 2026,
-        currency: Currency.EUR,
+        currency: 'EUR',
       });
 
       // 1.80 / 117.5 = 0.0153… → 0.02, while each row alone rounds to 0.01.

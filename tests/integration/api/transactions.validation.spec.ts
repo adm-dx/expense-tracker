@@ -8,6 +8,7 @@ import type {
 import {
   bearer,
   createTestApp,
+  enableCurrencies,
   registerUser,
   request,
   TestUser,
@@ -29,6 +30,8 @@ beforeAll(async () => {
   // Registration hashes a password over HTTP; once per file is enough, since
   // these tests only ever add transactions.
   user = await registerUser(app);
+  // A new user has only EUR; these tests write in RSD and HUF too.
+  await enableCurrencies(app, user, ['RSD', 'HUF']);
   const categories = await expectJson<Category[]>(
     request(app.getHttpServer())
       .get('/categories')
@@ -118,7 +121,7 @@ describe('GET /transactions query validation', () => {
       total: 0,
       page: 1,
       pageSize: 10,
-      currency: 'RSD',
+      currency: 'EUR',
       ratesDate: null,
     });
   });
@@ -127,7 +130,7 @@ describe('GET /transactions query validation', () => {
     expect((await listOk(`?currency=${currency}`)).currency).toBe(currency);
   });
 
-  it.each(['USD', 'eur', ''])('rejects currency=%s', async (currency) => {
+  it.each(['XYZ', 'eur', ''])('rejects currency=%s', async (currency) => {
     expectRule(await list(`?currency=${currency}`), 'currency must be one of');
   });
 
@@ -264,7 +267,7 @@ describe('GET /transactions/summary query validation', () => {
       '?dateFrom=2026-10-01T00:00:00.000Z&dateTo=2026-09-01T00:00:00.000Z',
     ],
     ['an unknown parameter', '?foo=1'],
-    ['an unsupported currency', '?currency=USD'],
+    ['an unsupported currency', '?currency=XYZ'],
   ])('rejects %s', async (_label, query) => {
     expect((await summary(query)).status).toBe(400);
   });
@@ -297,11 +300,17 @@ describe('POST /transactions body validation', () => {
     expectRule(await create(withoutCurrency), 'currency must be one of');
   });
 
-  it.each(['USD', 'eur', 42])('rejects currency=%s', async (currency) => {
+  it.each(['XYZ', 'eur', 42])('rejects currency=%s', async (currency) => {
     expectRule(
       await create({ ...validBody(), currency }),
       'currency must be one of'
     );
+  });
+
+  it('rejects a currency the user has not enabled', async () => {
+    const response = await create({ ...validBody(), currency: 'USD' });
+
+    expect(response.status).toBe(400);
   });
 
   it.each(['EUR', 'HUF'])('stores currency=%s as sent', async (currency) => {

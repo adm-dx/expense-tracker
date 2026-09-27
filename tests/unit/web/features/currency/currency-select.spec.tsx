@@ -1,6 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { DEFAULT_USER_SETTINGS } from '@expense-tracker/types';
+import {
+  DEFAULT_USER_SETTINGS,
+  type UserSettings,
+} from '@expense-tracker/types';
 import { useCurrencyStore } from '@web/entities/currency/model/store';
 import { useSettingsStore } from '@web/entities/settings';
 import { useExchangeRatesStore } from '@web/entities/currency/model/rates-store';
@@ -20,6 +23,13 @@ jest.mock('@web/shared/api/settings-api', () => ({
   settingsApi: { get: jest.fn(), update: jest.fn() },
 }));
 
+// A user who shows amounts in RSD and has two more currencies.
+const SAVED: UserSettings = {
+  ...DEFAULT_USER_SETTINGS,
+  currency: 'RSD',
+  currencies: ['RSD', 'EUR', 'HUF'],
+};
+
 const updateSettings = settingsApi.update as jest.MockedFunction<
   typeof settingsApi.update
 >;
@@ -38,11 +48,11 @@ beforeEach(() => {
   });
   updateSettings.mockReset();
   updateSettings.mockImplementation((patch) =>
-    Promise.resolve({ ...DEFAULT_USER_SETTINGS, ...patch })
+    Promise.resolve({ ...SAVED, ...patch })
   );
   useSettingsStore.getState().reset();
   useSettingsStore.setState({
-    settings: { ...DEFAULT_USER_SETTINGS },
+    settings: { ...SAVED },
     status: 'success',
   });
   useCurrencyStore.setState({ currency: 'RSD', hasHydrated: true });
@@ -56,7 +66,7 @@ describe('CurrencySelect', () => {
     render(<CurrencySelect />);
 
     expect(
-      screen.getByRole('button', { name: 'Display currency: RSD' })
+      screen.getByRole('button', { name: 'Display currency: RSD (дин.)' })
     ).toBeEnabled();
   });
 
@@ -68,23 +78,41 @@ describe('CurrencySelect', () => {
     expect(screen.getByRole('button')).toBeDisabled();
   });
 
-  it('offers the three currencies and saves the choice as the setting', async () => {
+  it('offers the enabled currencies and saves the choice as the setting', async () => {
     const user = userEvent.setup();
     render(<CurrencySelect />);
 
     await user.click(screen.getByRole('button', { name: /Display currency/ }));
     const options = await screen.findAllByRole('menuitemradio');
     expect(options.map((option) => option.textContent)).toEqual([
-      'RSD',
-      'EUR',
-      'HUF',
+      'RSD (дин.)',
+      'EUR (€)',
+      'HUF (Ft)',
     ]);
-    expect(screen.getByRole('menuitemradio', { name: 'RSD' })).toBeChecked();
+    expect(
+      screen.getByRole('menuitemradio', { name: 'RSD (дин.)' })
+    ).toBeChecked();
 
-    await user.click(screen.getByRole('menuitemradio', { name: 'EUR' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'EUR (€)' }));
 
     expect(updateSettings).toHaveBeenCalledWith({ currency: 'EUR' });
     expect(useSettingsStore.getState().settings?.currency).toBe('EUR');
+  });
+
+  it('follows the currencies enabled in the settings', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_USER_SETTINGS, currencies: ['RSD', 'USD'] },
+    });
+    const user = userEvent.setup();
+    render(<CurrencySelect />);
+
+    await user.click(screen.getByRole('button', { name: /Display currency/ }));
+    const options = await screen.findAllByRole('menuitemradio');
+
+    expect(options.map((option) => option.textContent)).toEqual([
+      'RSD (дин.)',
+      'USD ($)',
+    ]);
   });
 
   it('keeps the old currency when saving fails', async () => {
@@ -93,9 +121,13 @@ describe('CurrencySelect', () => {
     render(<CurrencySelect />);
 
     await user.click(screen.getByRole('button', { name: /Display currency/ }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'EUR' }));
+    await user.click(
+      await screen.findByRole('menuitemradio', { name: 'EUR (€)' })
+    );
 
-    await screen.findByRole('button', { name: 'Display currency: RSD' });
+    await screen.findByRole('button', {
+      name: 'Display currency: RSD (дин.)',
+    });
     expect(useSettingsStore.getState().settings?.currency).toBe('RSD');
   });
 
@@ -105,8 +137,12 @@ describe('CurrencySelect', () => {
 
     await user.click(screen.getByRole('button', { name: /Display currency/ }));
 
-    expect(await screen.findByText('1 EUR = 117.5 RSD')).toBeInTheDocument();
-    expect(screen.getByText('1 HUF = 0.2938 RSD')).toBeInTheDocument();
+    expect(
+      await screen.findByText('1 EUR (€) = 117.5 RSD (дин.)')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('1 HUF (Ft) = 0.2938 RSD (дин.)')
+    ).toBeInTheDocument();
     expect(screen.getByText('Rates of Sep 26, 2026')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Rates by ExchangeRate-API' })
@@ -124,8 +160,23 @@ describe('CurrencySelect', () => {
     expect(
       await screen.findByText('Exchange rates are unavailable')
     ).toBeInTheDocument();
-    await user.click(screen.getByRole('menuitemradio', { name: 'HUF' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'HUF (Ft)' }));
     expect(updateSettings).toHaveBeenCalledWith({ currency: 'HUF' });
+  });
+
+  it('leaves out a currency without a rate today', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_USER_SETTINGS, currencies: ['RSD', 'EUR', 'GBP'] },
+    });
+    const user = userEvent.setup();
+    render(<CurrencySelect />);
+
+    await user.click(screen.getByRole('button', { name: /Display currency/ }));
+
+    expect(
+      await screen.findByText('1 EUR (€) = 117.5 RSD (дин.)')
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/GBP \(£\) =/)).not.toBeInTheDocument();
   });
 });
 
@@ -153,7 +204,9 @@ describe('DisplayCurrencySync', () => {
     expect(useTransactionsStore.getState().currency).toBe('RSD');
 
     await user.click(screen.getByRole('button', { name: /Display currency/ }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'HUF' }));
+    await user.click(
+      await screen.findByRole('menuitemradio', { name: 'HUF (Ft)' })
+    );
 
     expect(useTransactionsStore.getState().currency).toBe('HUF');
   });

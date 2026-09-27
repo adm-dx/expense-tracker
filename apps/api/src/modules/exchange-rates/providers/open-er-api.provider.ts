@@ -1,11 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Currency, Prisma } from '../../../generated/prisma/client';
+import {
+  CURRENCIES,
+  DEFAULT_CURRENCY,
+  type Currency,
+} from '@expense-tracker/types';
+import { Prisma } from '../../../generated/prisma/client';
 import type { ExchangeRatesSnapshot } from '../contracts';
 import { ExchangeRatesProvider } from './exchange-rates.provider';
 
 export const DEFAULT_EXCHANGE_RATES_URL = 'https://open.er-api.com/v6';
-const BASE = Currency.EUR;
+const BASE: Currency = 'EUR';
+// Without these nothing converts: every other code is optional.
+const REQUIRED: readonly Currency[] = [...new Set([BASE, DEFAULT_CURRENCY])];
 const TIMEOUT_MS = 5000;
 
 interface OpenErApiResponse {
@@ -20,6 +27,7 @@ interface OpenErApiResponse {
  */
 @Injectable()
 export class OpenErApiProvider extends ExchangeRatesProvider {
+  private readonly logger = new Logger(OpenErApiProvider.name);
   private readonly baseUrl: string;
 
   constructor(configService: ConfigService) {
@@ -44,12 +52,19 @@ export class OpenErApiProvider extends ExchangeRatesProvider {
     }
 
     const rates = new Map<Currency, Prisma.Decimal>();
-    for (const code of Object.values(Currency)) {
+    const missing: Currency[] = [];
+    for (const code of CURRENCIES) {
       const rate = body.rates[code];
-      if (typeof rate !== 'number' || !(rate > 0)) {
+      if (typeof rate === 'number' && rate > 0) {
+        rates.set(code, new Prisma.Decimal(String(rate)));
+      } else if (REQUIRED.includes(code)) {
         throw new Error(`Exchange rates response has no rate for ${code}`);
+      } else {
+        missing.push(code);
       }
-      rates.set(code, new Prisma.Decimal(String(rate)));
+    }
+    if (missing.length > 0) {
+      this.logger.warn(`No exchange rate for ${missing.join(', ')}`);
     }
 
     const updatedAt = body.time_last_update_unix;

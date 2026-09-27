@@ -64,7 +64,7 @@ describe('transactionSchema', () => {
 
     it('rejects an unsupported currency', () => {
       expect(
-        transactionSchema.safeParse({ ...valid, currency: 'USD' }).success
+        transactionSchema.safeParse({ ...valid, currency: 'XYZ' }).success
       ).toBe(false);
     });
   });

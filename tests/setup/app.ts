@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import type { AuthResponse } from '@expense-tracker/types';
+import type { AuthResponse, Currency } from '@expense-tracker/types';
 import { sign, type SignOptions } from 'jsonwebtoken';
 import { AppModule } from '@api/app.module';
 import { configureApp } from '@api/app.config';
@@ -10,7 +10,7 @@ import { GeocodingProvider } from '@api/modules/weather/providers/geocoding.prov
 import { WeatherProvider } from '@api/modules/weather/providers/weather.provider';
 import { assertTestDatabase } from './env';
 import { FakeExchangeRatesProvider } from './exchange-rates';
-import { expectJson } from './http';
+import { expectJson, expectStatus } from './http';
 import { FakeGeocodingProvider, FakeWeatherProvider } from './weather';
 
 /** Fakes for the weather module's outside services, see `createTestApp`. */
@@ -92,6 +92,26 @@ export async function registerUser(
     accessToken: auth.accessToken,
     refreshToken: auth.refreshToken,
   };
+}
+
+/**
+ * Enables currencies for the user through the API, in order. A new user has
+ * only EUR, so a test that writes transactions in anything else needs this.
+ */
+export async function enableCurrencies(
+  app: INestApplication,
+  user: Pick<TestUser, 'accessToken'>,
+  codes: readonly Currency[]
+): Promise<void> {
+  for (const code of codes) {
+    await expectStatus(
+      request(app.getHttpServer())
+        .post('/settings/currencies')
+        .set(...bearer(user))
+        .send({ code }),
+      200
+    );
+  }
 }
 
 export function bearer(user: Pick<TestUser, 'accessToken'>): [string, string] {

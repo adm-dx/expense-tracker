@@ -4,7 +4,11 @@ import type { UserSettings as UserSettingsRow } from '../../generated/prisma/cli
 import { PrismaService } from '../../prisma/prisma.service';
 
 function toDocument(settings: UserSettings) {
-  return { ...settings, location: { ...settings.location } };
+  return {
+    ...settings,
+    currencies: [...settings.currencies],
+    location: { ...settings.location },
+  };
 }
 
 @Injectable()

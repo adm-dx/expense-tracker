@@ -1,6 +1,8 @@
-import { Currency, TransactionType } from '../../../generated/prisma/client';
+import { CURRENCIES, type Currency } from '@expense-tracker/types';
+import { TransactionType } from '../../../generated/prisma/client';
 import {
   IsEnum,
+  IsIn,
   IsISO8601,
   IsNotEmpty,
   IsNumber,
@@ -23,7 +25,7 @@ export class UpdateTransactionDto {
   amount?: number;
 
   @ValidateIf((_, value) => value !== undefined)
-  @IsEnum(Currency)
+  @IsIn(CURRENCIES)
   currency?: Currency;
 
   @ValidateIf((_, value) => value !== undefined)

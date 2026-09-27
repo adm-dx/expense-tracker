@@ -6,9 +6,10 @@ import type {
   Transaction,
   TransactionsPage,
   TransactionSummary,
+  UserSettings,
 } from '@expense-tracker/types';
 import { DEFAULT_CATEGORIES } from '@api/modules/categories/default-categories';
-import { createTestApp, request } from '@tests/setup/app';
+import { createTestApp, enableCurrencies, request } from '@tests/setup/app';
 import { TEST_RATES } from '@tests/setup/exchange-rates';
 import { expectJson } from '@tests/setup/http';
 import {
@@ -30,7 +31,7 @@ interface Row {
   id: string;
   type: 'INCOME' | 'EXPENSE';
   categoryId: string;
-  /** In RSD, the default display currency, whatever the row was entered in. */
+  /** In RSD, this user's display currency, whatever the row was entered in. */
   cents: number;
   date: string;
 }
@@ -68,15 +69,25 @@ const inRange = (row: Row, from: string, to: string) => {
   return time >= new Date(from).getTime() && time <= new Date(to).getTime();
 };
 
+// The web app always sends the display currency, which this user sets to RSD.
+function inRsd(query: string) {
+  if (query.includes('currency=')) return query;
+  return `${query}${query.includes('?') ? '&' : '?'}currency=RSD`;
+}
+
 function list(query: string) {
   return expectJson<TransactionsPage>(
-    server().get(`/transactions${query}`).set(auth())
+    server()
+      .get(`/transactions${inRsd(query)}`)
+      .set(auth())
   );
 }
 
 function summary(query: string) {
   return expectJson<TransactionSummary>(
-    server().get(`/transactions/summary${query}`).set(auth())
+    server()
+      .get(`/transactions/summary${inRsd(query)}`)
+      .set(auth())
   );
 }
 
@@ -106,6 +117,18 @@ describe('home screen journey', () => {
     refreshToken = registered.refreshToken;
     expect(registered.user.email).toBe(EMAIL);
     await server().get('/auth/me').set(auth()).expect(200);
+  });
+
+  it('adds dinars and forints and shows amounts in dinars', async () => {
+    await enableCurrencies(app, { accessToken }, ['RSD', 'HUF']);
+    const settings = await expectJson<UserSettings>(
+      server().patch('/settings').set(auth()).send({ currency: 'RSD' })
+    );
+
+    expect(settings).toMatchObject({
+      currency: 'RSD',
+      currencies: ['EUR', 'RSD', 'HUF'],
+    });
   });
 
   it('starts with the default categories and an empty table', async () => {
@@ -391,7 +414,8 @@ describe('home screen journey', () => {
     const CURRENCIES: Currency[] = ['RSD', 'EUR', 'HUF'];
     /** Units of `currency` per 1 RSD, from the fake provider's rates. */
     const perRsd = (currency: Currency) =>
-      Number(TEST_RATES[currency]) / Number(TEST_RATES.RSD);
+      Number(TEST_RATES[currency as keyof typeof TEST_RATES]) /
+      Number(TEST_RATES.RSD);
 
     it('records transactions in euros and forints as entered', async () => {
       const drafts = [

@@ -3,8 +3,11 @@ import {
   DEFAULT_USER_SETTINGS,
   type AuthResponse,
   type AuthTokens,
+  type Category,
   type Place,
+  type RemoveCurrencyResult,
   type TransactionsPage,
+  type TransactionSummary,
   type UserSettings,
 } from '@expense-tracker/types';
 import { createTestApp, request } from '@tests/setup/app';
@@ -144,16 +147,12 @@ describe('user settings journey', () => {
 
   it('signs the phone out at its next refresh, without hurting the laptop', async () => {
     await expectStatus(
-      server()
-        .post('/auth/refresh')
-        .send({ refreshToken: phone.refreshToken }),
+      server().post('/auth/refresh').send({ refreshToken: phone.refreshToken }),
       401
     );
 
     laptop = await expectJson<AuthTokens>(
-      server()
-        .post('/auth/refresh')
-        .send({ refreshToken: laptop.refreshToken })
+      server().post('/auth/refresh').send({ refreshToken: laptop.refreshToken })
     );
     await expectStatus(server().get('/auth/me').set(as(laptop)), 200);
   });
@@ -175,5 +174,108 @@ describe('user settings journey', () => {
     ).resolves.toEqual(DEFAULT_USER_SETTINGS);
 
     await expect(getSettings(laptop)).resolves.toEqual(DEFAULT_USER_SETTINGS);
+  });
+});
+
+/**
+ * Adding a currency, spending in it, then removing it: its transactions come
+ * back in EUR, the default currency, at the day rates, and the table and the
+ * summary still agree. Fake rates: 1 EUR = 2 USD.
+ */
+describe('currency journey', () => {
+  let user: AuthTokens;
+  let categoryId: string;
+
+  const summaryInEur = () =>
+    expectJson<TransactionSummary>(
+      server()
+        .get('/transactions/summary?month=9&year=2026&currency=EUR')
+        .set(as(user))
+    );
+  const listInEur = () =>
+    expectJson<TransactionsPage>(
+      server().get('/transactions?currency=EUR').set(as(user))
+    );
+
+  it('signs up and adds US dollars', async () => {
+    user = await expectJson<AuthResponse>(
+      server().post('/auth/register').send({
+        name: 'Currencies',
+        email: 'currency-journey@example.com',
+        password: PASSWORD,
+      }),
+      201
+    );
+    const categories = await expectJson<Category[]>(
+      server().get('/categories').set(as(user))
+    );
+    categoryId = categories[0]!.id;
+
+    const settings = await expectJson<UserSettings>(
+      server().post('/settings/currencies').set(as(user)).send({ code: 'USD' })
+    );
+
+    // A new user has only EUR.
+    expect(settings.currencies).toEqual(['EUR', 'USD']);
+  });
+
+  it('shows amounts in dollars and records a purchase in them', async () => {
+    await expectJson<UserSettings>(
+      server().patch('/settings').set(as(user)).send({ currency: 'USD' })
+    );
+    for (const [amount, currency] of [
+      [12.5, 'USD'],
+      [10, 'EUR'],
+    ] as const) {
+      await expectStatus(
+        server().post('/transactions').set(as(user)).send({
+          amount,
+          currency,
+          type: 'EXPENSE',
+          date: '2026-09-10',
+          categoryId,
+        }),
+        201
+      );
+    }
+
+    const summary = await summaryInEur();
+    // 12.50 USD = 6.25 EUR
+    expect(summary.totalExpense).toBe('16.25');
+  });
+
+  it('removes dollars: the purchase is now in euros, totals unchanged', async () => {
+    const result = await expectJson<RemoveCurrencyResult>(
+      server().delete('/settings/currencies/USD').set(as(user))
+    );
+
+    expect(result.convertedCount).toBe(1);
+    expect(result.settings).toMatchObject({
+      currency: 'EUR',
+      currencies: ['EUR'],
+    });
+
+    const page = await listInEur();
+    expect(page.ratesDate).toBeNull();
+    expect(
+      page.items.map((item) => [item.amount, item.currency]).sort()
+    ).toEqual([
+      ['10.00', 'EUR'],
+      ['6.25', 'EUR'],
+    ]);
+    expect((await summaryInEur()).totalExpense).toBe('16.25');
+  });
+
+  it('can no longer record a purchase in dollars', async () => {
+    await expectStatus(
+      server().post('/transactions').set(as(user)).send({
+        amount: 1,
+        currency: 'USD',
+        type: 'EXPENSE',
+        date: '2026-09-10',
+        categoryId,
+      }),
+      400
+    );
   });
 });

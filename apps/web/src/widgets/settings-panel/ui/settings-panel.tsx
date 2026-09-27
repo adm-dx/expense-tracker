@@ -1,7 +1,9 @@
 'use client';
 
+import { DEFAULT_CURRENCY } from '@expense-tracker/types';
 import type { ReactNode } from 'react';
 import { ChangePasswordForm } from '@/features/auth/change-password';
+import { CurrencyList } from '@/features/settings/currencies';
 import { DefaultCurrencySelect } from '@/features/settings/currency';
 import { LocationForm } from '@/features/settings/location';
 import { ResetSettingsButton } from '@/features/settings/reset';
@@ -91,7 +93,19 @@ export function SettingsPanel() {
         description="Amounts are shown in it, and new transactions start in it. The switcher in the header changes the same setting."
       >
         {settings ? (
-          <DefaultCurrencySelect value={settings.currency} />
+          <div className="space-y-6">
+            <DefaultCurrencySelect value={settings.currency} />
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-sm font-medium">Your currencies</h3>
+                <p className="text-sm text-muted-foreground">
+                  Transactions can be entered in these. Removing one converts
+                  its transactions to {DEFAULT_CURRENCY} at today&apos;s rate.
+                </p>
+              </div>
+              <CurrencyList value={settings.currencies} />
+            </div>
+          </div>
         ) : (
           <SectionSkeleton />
         )}

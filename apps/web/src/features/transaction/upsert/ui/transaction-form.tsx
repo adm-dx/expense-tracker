@@ -1,15 +1,16 @@
 'use client';
 
-import {
-  CURRENCIES,
-  type Currency,
-  type Transaction,
-} from '@expense-tracker/types';
+import type { Currency, Transaction } from '@expense-tracker/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { CategoryIcon, useCategoriesStore } from '@/entities/category';
 import { useCurrencyStore } from '@/entities/currency';
-import { todayDateInputValue, toDateInputValue } from '@/shared/lib/format';
+import { useEnabledCurrencies } from '@/entities/settings';
+import {
+  formatCurrency,
+  todayDateInputValue,
+  toDateInputValue,
+} from '@/shared/lib/format';
 import {
   Button,
   DialogFooter,
@@ -68,6 +69,12 @@ export function TransactionForm({
 }: TransactionFormProps) {
   const categories = useCategoriesStore((state) => state.categories);
   const defaultCurrency = useCurrencyStore((state) => state.currency);
+  const enabledCurrencies = useEnabledCurrencies();
+  // A transaction keeps its currency even if it is no longer enabled.
+  const currencies =
+    transaction && !enabledCurrencies.includes(transaction.currency)
+      ? [...enabledCurrencies, transaction.currency]
+      : enabledCurrencies;
   const categoriesStatus = useCategoriesStore((state) => state.status);
   const noCategories =
     categoriesStatus !== 'loading' && categories.length === 0;
@@ -83,7 +90,7 @@ export function TransactionForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-[1fr_1fr_110px]">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-[1fr_1fr_130px]">
           <FormField
             control={form.control}
             name="type"
@@ -137,9 +144,9 @@ export function TransactionForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {CURRENCIES.map((code) => (
+                    {currencies.map((code) => (
                       <SelectItem key={code} value={code}>
-                        {code}
+                        {formatCurrency(code)}
                       </SelectItem>
                     ))}
                   </SelectContent>
