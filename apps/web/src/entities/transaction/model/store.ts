@@ -24,6 +24,7 @@ interface TransactionsState {
   items: TransactionListItem[];
   total: number;
   page: number;
+  /** Rows per page; persisted across reloads, like the period. */
   pageSize: TransactionPageSize;
   /** Shared by the table and the summary widgets; persisted across reloads. */
   period: Period;
@@ -55,6 +56,17 @@ interface TransactionsState {
 }
 
 const DEFAULT_PAGE_SIZE: TransactionPageSize = TRANSACTION_PAGE_SIZES[0];
+
+/**
+ * Reads back the persisted rows-per-page, falling back to the default for
+ * anything that isn't one of the offered sizes (hand-edited storage, a size
+ * dropped from the list).
+ */
+function restorePageSize(value: unknown): TransactionPageSize {
+  const stored = (value as { pageSize?: unknown } | null | undefined)?.pageSize;
+  const size = TRANSACTION_PAGE_SIZES.find((option) => option === stored);
+  return size ?? DEFAULT_PAGE_SIZE;
+}
 
 // Guards against out-of-order responses when page/pageSize change quickly,
 // and against responses from a previous session landing after a reset.
@@ -141,10 +153,15 @@ export const useTransactionsStore = create<TransactionsState>()(
       name: 'transactions-period',
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      partialize: (state) => ({ period: state.period, preset: state.preset }),
+      partialize: (state) => ({
+        period: state.period,
+        preset: state.preset,
+        pageSize: state.pageSize,
+      }),
       merge: (persisted, current) => ({
         ...current,
         ...restorePeriod(persisted),
+        pageSize: restorePageSize(persisted),
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

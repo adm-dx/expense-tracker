@@ -286,7 +286,7 @@ describe('useTransactionsStore', () => {
     });
   });
 
-  describe('persisted period', () => {
+  describe('persisted period and page size', () => {
     const STORAGE_KEY = 'transactions-period';
 
     function stored() {
@@ -297,8 +297,9 @@ describe('useTransactionsStore', () => {
       localStorage.clear();
     });
 
-    it('writes the chosen period to localStorage, and nothing else', () => {
+    it('writes the chosen period and page size, and nothing else', () => {
       useTransactionsStore.getState().setPage(3);
+      useTransactionsStore.getState().setPageSize(50);
       useTransactionsStore
         .getState()
         .setPeriod({ dateFrom: '2026-03-04', dateTo: '2026-05-06' }, 'custom');
@@ -307,10 +308,35 @@ describe('useTransactionsStore', () => {
         state: {
           period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
           preset: 'custom',
+          pageSize: 50,
         },
         version: 0,
       });
     });
+
+    it('restores a stored page size', async () => {
+      useTransactionsStore.setState({ hasHydrated: false });
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ state: { preset: 'this-month', pageSize: 20 } })
+      );
+
+      await useTransactionsStore.persist.rehydrate();
+
+      expect(useTransactionsStore.getState().pageSize).toBe(20);
+    });
+
+    it.each([[{ pageSize: 15 }], [{ pageSize: 'all' }], [{}]])(
+      'falls back to the default page size for %p',
+      async (state) => {
+        useTransactionsStore.setState({ pageSize: 50, hasHydrated: false });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ state }));
+
+        await useTransactionsStore.persist.rehydrate();
+
+        expect(useTransactionsStore.getState().pageSize).toBe(10);
+      }
+    );
 
     it('restores a stored custom range and flags hydration', async () => {
       useTransactionsStore.setState({ hasHydrated: false });
