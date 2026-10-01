@@ -30,6 +30,7 @@ beforeEach(() => {
   useTransactionsStore.getState().reset();
   useTransactionsStore.setState({
     period: { dateFrom: '2026-09-01', dateTo: '2026-09-30' },
+    hasHydrated: true,
     currency: 'RSD',
   });
 });

@@ -49,6 +49,7 @@ export function CategoryReport() {
   const currency = useCurrencyStore((state) => state.currency);
   const currencyHydrated = useCurrencyStore((state) => state.hasHydrated);
   const period = useCategoryReportStore((state) => state.period);
+  const periodHydrated = useCategoryReportStore((state) => state.hasHydrated);
   const preset = useCategoryReportStore((state) => state.preset);
   const report = useCategoryReportStore((state) => state.report);
   const status = useCategoryReportStore((state) => state.status);
@@ -58,10 +59,11 @@ export function CategoryReport() {
   const [type, setType] = useState<TransactionType>('EXPENSE');
   const [metric, setMetric] = useState<ReportMetric>('amount');
 
-  // Wait for the stored display currency, so nothing loads in EUR first.
+  // Wait for the stored display currency, so nothing loads in EUR first; the
+  // store itself waits for the stored period, hence the extra dependency.
   useEffect(() => {
     if (currencyHydrated) void fetchReport(currency);
-  }, [period, currency, currencyHydrated, fetchReport]);
+  }, [period, periodHydrated, currency, currencyHydrated, fetchReport]);
 
   const isLoading = status === 'loading' || status === 'idle';
   const { rows, totals } = report

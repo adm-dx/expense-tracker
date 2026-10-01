@@ -52,6 +52,8 @@ beforeEach(() => {
   useTransactionsStore.setState({
     period: SEPTEMBER,
     preset: 'this-month',
+    // The real flag is flipped by `persist.rehydrate()` in the root layout.
+    hasHydrated: true,
     currency: 'RSD',
   });
 });
@@ -281,6 +283,70 @@ describe('useTransactionsStore', () => {
         ratesDate: null,
         items: [],
       });
+    });
+  });
+
+  describe('persisted period', () => {
+    const STORAGE_KEY = 'transactions-period';
+
+    function stored() {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
+    }
+
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    it('writes the chosen period to localStorage, and nothing else', () => {
+      useTransactionsStore.getState().setPage(3);
+      useTransactionsStore
+        .getState()
+        .setPeriod({ dateFrom: '2026-03-04', dateTo: '2026-05-06' }, 'custom');
+
+      expect(stored()).toEqual({
+        state: {
+          period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+          preset: 'custom',
+        },
+        version: 0,
+      });
+    });
+
+    it('restores a stored custom range and flags hydration', async () => {
+      useTransactionsStore.setState({ hasHydrated: false });
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          state: {
+            period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+            preset: 'custom',
+          },
+          version: 0,
+        })
+      );
+
+      await useTransactionsStore.persist.rehydrate();
+
+      expect(useTransactionsStore.getState()).toMatchObject({
+        period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+        preset: 'custom',
+        hasHydrated: true,
+      });
+    });
+
+    it('fetches nothing before the stored period is read back', async () => {
+      useTransactionsStore.setState({ hasHydrated: false });
+
+      await useTransactionsStore.getState().fetch();
+
+      expect(list).not.toHaveBeenCalled();
+      expect(useTransactionsStore.getState().status).toBe('idle');
+    });
+
+    it('stays hydrated across a session change, so the next user loads data', () => {
+      useTransactionsStore.getState().reset();
+
+      expect(useTransactionsStore.getState().hasHydrated).toBe(true);
     });
   });
 });

@@ -40,6 +40,7 @@ function makeReport(total: string): TransactionSummary {
 beforeEach(() => {
   summary.mockReset();
   useCategoryReportStore.getState().reset();
+  useCategoryReportStore.setState({ hasHydrated: true });
   useCategoryReportStore.getState().setPeriod(SEPTEMBER, 'custom');
 });
 
@@ -102,5 +103,58 @@ describe('useCategoryReportStore', () => {
       period: DEFAULT_PERIOD,
       preset: 'this-month',
     });
+  });
+});
+
+describe('persisted period', () => {
+  const STORAGE_KEY = 'report-period';
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('writes its period under its own key', () => {
+    useCategoryReportStore
+      .getState()
+      .setPeriod({ dateFrom: '2026-03-04', dateTo: '2026-05-06' }, 'custom');
+
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')).toEqual({
+      state: {
+        period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+        preset: 'custom',
+      },
+      version: 0,
+    });
+  });
+
+  it('restores a stored custom range and flags hydration', async () => {
+    useCategoryReportStore.setState({ hasHydrated: false });
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        state: {
+          period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+          preset: 'custom',
+        },
+        version: 0,
+      })
+    );
+
+    await useCategoryReportStore.persist.rehydrate();
+
+    expect(useCategoryReportStore.getState()).toMatchObject({
+      period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+      preset: 'custom',
+      hasHydrated: true,
+    });
+  });
+
+  it('fetches nothing before the stored period is read back', async () => {
+    useCategoryReportStore.setState({ hasHydrated: false });
+
+    await useCategoryReportStore.getState().fetch('EUR');
+
+    expect(summary).not.toHaveBeenCalled();
+    expect(useCategoryReportStore.getState().status).toBe('idle');
   });
 });

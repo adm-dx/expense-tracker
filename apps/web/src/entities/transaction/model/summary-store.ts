@@ -26,8 +26,9 @@ export const useSummaryStore = create<SummaryState>()((set) => ({
   status: 'idle',
   error: null,
   fetch: async () => {
-    const { period, currency } = useTransactionsStore.getState();
-    if (currency === null) return;
+    const { period, currency, hasHydrated } = useTransactionsStore.getState();
+    // Same wait as the table: the stored period and currency come first.
+    if (currency === null || !hasHydrated) return;
     const requestId = ++latestRequestId;
     set({ status: 'loading', error: null });
     try {

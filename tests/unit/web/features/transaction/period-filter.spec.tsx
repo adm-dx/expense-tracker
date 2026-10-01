@@ -94,6 +94,48 @@ describe('PeriodFilter', () => {
     expect(period()).toEqual({ dateFrom: '2026-08-15', dateTo: '2026-08-15' });
   });
 
+  it('has the reset button disabled while the default period is on', () => {
+    render(<PeriodFilter />);
+
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled();
+  });
+
+  it('goes back to the default period from the reset button', async () => {
+    const user = userEvent.setup();
+    useTransactionsStore.setState({ page: 4 });
+    render(<PeriodFilter />);
+
+    await user.click(screen.getByRole('combobox', { name: 'Period' }));
+    await user.click(await screen.findByRole('option', { name: 'This year' }));
+    await user.click(screen.getByRole('button', { name: 'Reset' }));
+
+    expect(screen.getByRole('combobox', { name: 'Period' })).toHaveTextContent(
+      'This month'
+    );
+    expect(screen.getByLabelText('From')).toHaveValue('2026-09-01');
+    expect(screen.getByLabelText('To')).toHaveValue('2026-09-30');
+    expect(useTransactionsStore.getState()).toMatchObject({
+      preset: 'this-month',
+      period: SEPTEMBER,
+      page: 1,
+    });
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled();
+  });
+
+  it('goes back to the default period from custom dates', () => {
+    render(<PeriodFilter />);
+
+    fireEvent.change(screen.getByLabelText('From'), {
+      target: { value: '2026-09-10' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+
+    expect(useTransactionsStore.getState()).toMatchObject({
+      preset: 'this-month',
+      period: SEPTEMBER,
+    });
+  });
+
   it('ignores a cleared date input', () => {
     render(<PeriodFilter />);
 

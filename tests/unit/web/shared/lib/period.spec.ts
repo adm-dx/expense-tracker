@@ -2,6 +2,7 @@ import {
   formatPeriod,
   getPresetPeriod,
   PERIOD_PRESETS,
+  restorePeriod,
 } from '@web/shared/lib/period';
 
 /** Pins "today" (local time) without touching timers. */
@@ -113,5 +114,95 @@ describe('formatPeriod', () => {
     expect(formatPeriod({ dateFrom: '2026-09-16', dateTo: '2026-09-16' })).toBe(
       'Sep 16, 2026'
     );
+  });
+});
+
+describe('restorePeriod', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('recomputes a stored preset from today, not from the day it was saved', () => {
+    setToday(2026, 8, 16);
+
+    // Saved in September, read back in... still September here, but the dates
+    // stored back then are ignored either way.
+    expect(
+      restorePeriod({
+        preset: 'last-month',
+        period: { dateFrom: '2026-01-01', dateTo: '2026-01-31' },
+      })
+    ).toEqual({
+      preset: 'last-month',
+      period: { dateFrom: '2026-08-01', dateTo: '2026-08-31' },
+    });
+  });
+
+  it('keeps the dates of a custom range', () => {
+    setToday(2026, 8, 16);
+
+    expect(
+      restorePeriod({
+        preset: 'custom',
+        period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+      })
+    ).toEqual({
+      preset: 'custom',
+      period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+    });
+  });
+
+  it('falls back to this month without anything stored', () => {
+    setToday(2026, 8, 16);
+
+    expect(restorePeriod(undefined)).toEqual({
+      preset: 'this-month',
+      period: { dateFrom: '2026-09-01', dateTo: '2026-09-30' },
+    });
+  });
+
+  it('falls back to this month for an unknown preset', () => {
+    setToday(2026, 8, 16);
+
+    expect(restorePeriod({ preset: 'last-decade' })).toEqual({
+      preset: 'this-month',
+      period: { dateFrom: '2026-09-01', dateTo: '2026-09-30' },
+    });
+  });
+
+  it.each([
+    ['a missing range', { preset: 'custom' }],
+    [
+      'a half-written range',
+      { preset: 'custom', period: { dateFrom: '2026-03-04' } },
+    ],
+    [
+      'a date that is not a date',
+      {
+        preset: 'custom',
+        period: { dateFrom: 'yesterday', dateTo: '2026-03-04' },
+      },
+    ],
+    [
+      'a number instead of a date',
+      {
+        preset: 'custom',
+        period: { dateFrom: 20260304, dateTo: '2026-03-04' },
+      },
+    ],
+    [
+      'an inverted range',
+      {
+        preset: 'custom',
+        period: { dateFrom: '2026-05-06', dateTo: '2026-03-04' },
+      },
+    ],
+  ])('falls back to this month for %s', (_label, stored) => {
+    setToday(2026, 8, 16);
+
+    expect(restorePeriod(stored)).toEqual({
+      preset: 'this-month',
+      period: { dateFrom: '2026-09-01', dateTo: '2026-09-30' },
+    });
   });
 });
