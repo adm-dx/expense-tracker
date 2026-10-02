@@ -76,6 +76,7 @@ function makeReport(
 beforeEach(() => {
   summary.mockReset();
   useCategoryReportStore.getState().reset();
+  useCategoryReportStore.setState({ hasHydrated: true });
   useCurrencyStore.setState({ currency: 'EUR', hasHydrated: true });
 });
 

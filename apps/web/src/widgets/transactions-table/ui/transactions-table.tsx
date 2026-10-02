@@ -41,6 +41,7 @@ export function TransactionsTable() {
   const page = useTransactionsStore((state) => state.page);
   const pageSize = useTransactionsStore((state) => state.pageSize);
   const period = useTransactionsStore((state) => state.period);
+  const periodHydrated = useTransactionsStore((state) => state.hasHydrated);
   const currency = useTransactionsStore((state) => state.currency);
   const itemsCurrency = useTransactionsStore((state) => state.itemsCurrency);
   const fetchTransactions = useTransactionsStore((state) => state.fetch);
@@ -54,9 +55,11 @@ export function TransactionsTable() {
     void loadCategories();
   }, [loadCategories]);
 
+  // `periodHydrated` is a dependency, not a condition: the store ignores a
+  // fetch before it flips, and the stored period may equal the default.
   useEffect(() => {
     void fetchTransactions();
-  }, [page, pageSize, period, currency, fetchTransactions]);
+  }, [page, pageSize, period, periodHydrated, currency, fetchTransactions]);
 
   function openAction(kind: 'edit' | 'delete', transaction: Transaction) {
     setSelected(transaction);

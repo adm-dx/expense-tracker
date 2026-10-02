@@ -79,6 +79,7 @@ beforeEach(() => {
     ratesDate: null,
   });
   useTransactionsStore.getState().reset();
+  useTransactionsStore.setState({ hasHydrated: true });
   useTransactionsStore.getState().setCurrency('RSD');
   useSummaryStore.getState().reset();
 });

@@ -52,6 +52,8 @@ beforeEach(() => {
   useTransactionsStore.setState({
     period: SEPTEMBER,
     preset: 'this-month',
+    // The real flag is flipped by `persist.rehydrate()` in the root layout.
+    hasHydrated: true,
     currency: 'RSD',
   });
 });
@@ -281,6 +283,96 @@ describe('useTransactionsStore', () => {
         ratesDate: null,
         items: [],
       });
+    });
+  });
+
+  describe('persisted period and page size', () => {
+    const STORAGE_KEY = 'transactions-period';
+
+    function stored() {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
+    }
+
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    it('writes the chosen period and page size, and nothing else', () => {
+      useTransactionsStore.getState().setPage(3);
+      useTransactionsStore.getState().setPageSize(50);
+      useTransactionsStore
+        .getState()
+        .setPeriod({ dateFrom: '2026-03-04', dateTo: '2026-05-06' }, 'custom');
+
+      expect(stored()).toEqual({
+        state: {
+          period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+          preset: 'custom',
+          pageSize: 50,
+        },
+        version: 0,
+      });
+    });
+
+    it('restores a stored page size', async () => {
+      useTransactionsStore.setState({ hasHydrated: false });
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ state: { preset: 'this-month', pageSize: 20 } })
+      );
+
+      await useTransactionsStore.persist.rehydrate();
+
+      expect(useTransactionsStore.getState().pageSize).toBe(20);
+    });
+
+    it.each([[{ pageSize: 15 }], [{ pageSize: 'all' }], [{}]])(
+      'falls back to the default page size for %p',
+      async (state) => {
+        useTransactionsStore.setState({ pageSize: 50, hasHydrated: false });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ state }));
+
+        await useTransactionsStore.persist.rehydrate();
+
+        expect(useTransactionsStore.getState().pageSize).toBe(10);
+      }
+    );
+
+    it('restores a stored custom range and flags hydration', async () => {
+      useTransactionsStore.setState({ hasHydrated: false });
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          state: {
+            period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+            preset: 'custom',
+          },
+          version: 0,
+        })
+      );
+
+      await useTransactionsStore.persist.rehydrate();
+
+      expect(useTransactionsStore.getState()).toMatchObject({
+        period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+        preset: 'custom',
+        hasHydrated: true,
+      });
+    });
+
+    it('fetches nothing before the stored period is read back', async () => {
+      useTransactionsStore.setState({ hasHydrated: false });
+
+      await useTransactionsStore.getState().fetch();
+
+      expect(list).not.toHaveBeenCalled();
+      expect(useTransactionsStore.getState().status).toBe('idle');
+    });
+
+    it('stays hydrated across a session change, so the next user loads data', () => {
+      useTransactionsStore.getState().reset();
+
+      expect(useTransactionsStore.getState().hasHydrated).toBe(true);
     });
   });
 });

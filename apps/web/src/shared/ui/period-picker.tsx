@@ -1,12 +1,15 @@
 'use client';
 
+import { RotateCcw } from 'lucide-react';
 import { useId } from 'react';
 import {
+  DEFAULT_PERIOD_PRESET,
   getPresetPeriod,
   PERIOD_PRESETS,
   type Period,
   type PeriodPreset,
 } from '@/shared/lib/period';
+import { Button } from './button';
 import { Input } from './input';
 import { Label } from './label';
 import {
@@ -32,6 +35,10 @@ export function PeriodPicker({ period, preset, onChange }: PeriodPickerProps) {
     const next = value as PeriodPreset;
     // "Custom" keeps the current dates and just unlocks the inputs.
     onChange(next === 'custom' ? period : getPresetPeriod(next), next);
+  }
+
+  function handleReset() {
+    onChange(getPresetPeriod(DEFAULT_PERIOD_PRESET), DEFAULT_PERIOD_PRESET);
   }
 
   function handleDateChange(bound: 'dateFrom' | 'dateTo', value: string) {
@@ -91,6 +98,16 @@ export function PeriodPicker({ period, preset, onChange }: PeriodPickerProps) {
           onChange={(event) => handleDateChange('dateTo', event.target.value)}
         />
       </div>
+      {/* Always rendered, so choosing a preset doesn't shift the row. */}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleReset}
+        disabled={preset === DEFAULT_PERIOD_PRESET}
+      >
+        <RotateCcw />
+        Reset
+      </Button>
     </div>
   );
 }

@@ -11,15 +11,18 @@ import { SummaryCard } from './summary-card';
 
 export function TransactionsSummary() {
   const period = useTransactionsStore((state) => state.period);
+  const periodHydrated = useTransactionsStore((state) => state.hasHydrated);
   const currency = useTransactionsStore((state) => state.currency);
   const summary = useSummaryStore((state) => state.summary);
   const status = useSummaryStore((state) => state.status);
   const error = useSummaryStore((state) => state.error);
   const fetchSummary = useSummaryStore((state) => state.fetch);
 
+  // Like the table: the store waits for the stored period, so the flag only
+  // has to retrigger the load.
   useEffect(() => {
     void fetchSummary();
-  }, [period, currency, fetchSummary]);
+  }, [period, periodHydrated, currency, fetchSummary]);
 
   const isLoading = status === 'loading' || status === 'idle';
   const caption = summary?.ratesDate
