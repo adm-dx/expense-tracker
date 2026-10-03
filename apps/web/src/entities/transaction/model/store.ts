@@ -9,6 +9,10 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { transactionsApi } from '@/shared/api/transactions-api';
 import { getErrorMessage } from '@/shared/lib/error';
 import { registerStoreReset } from '@/shared/lib/store-reset';
+import {
+  onStorageUserChange,
+  userLocalStorage,
+} from '@/shared/lib/user-storage';
 import { toIsoDate, toIsoEndOfDay } from '@/shared/lib/format';
 import {
   DEFAULT_PERIOD,
@@ -24,9 +28,12 @@ interface TransactionsState {
   items: TransactionListItem[];
   total: number;
   page: number;
-  /** Rows per page; persisted across reloads, like the period. */
+  /** Rows per page; persisted per user, like the period. */
   pageSize: TransactionPageSize;
-  /** Shared by the table and the summary widgets; persisted across reloads. */
+  /**
+   * Shared by the table and the summary widgets; persisted per user, so it
+   * survives reloads and signing out and back in.
+   */
   period: Period;
   preset: PeriodPreset;
   /** False until the stored period is read back; nothing is fetched before. */
@@ -131,17 +138,16 @@ export const useTransactionsStore = create<TransactionsState>()(
           set({ status: 'error', error: getErrorMessage(err) });
         }
       },
-      // Keeps `currency` (a device preference, not the user's data) and
-      // `hasHydrated`: storage is read once per tab, not once per session.
+      // Keeps `currency` (a device preference, not the user's data) and the
+      // persisted period and page size: those are read back for the next
+      // user by `onStorageUserChange` below, and resetting them here would
+      // overwrite what the previous user left behind.
       reset: () => {
         latestRequestId++;
         set({
           items: [],
           total: 0,
           page: 1,
-          pageSize: DEFAULT_PAGE_SIZE,
-          period: DEFAULT_PERIOD,
-          preset: DEFAULT_PERIOD_PRESET,
           itemsCurrency: null,
           ratesDate: null,
           status: 'idle',
@@ -151,7 +157,7 @@ export const useTransactionsStore = create<TransactionsState>()(
     }),
     {
       name: 'transactions-period',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => userLocalStorage),
       skipHydration: true,
       partialize: (state) => ({
         period: state.period,
@@ -171,3 +177,6 @@ export const useTransactionsStore = create<TransactionsState>()(
 );
 
 registerStoreReset(() => useTransactionsStore.getState().reset());
+// The first call comes from the session's own rehydration, so this is also
+// what reads the stored period back on page load.
+onStorageUserChange(() => void useTransactionsStore.persist.rehydrate());

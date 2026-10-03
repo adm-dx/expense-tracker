@@ -12,13 +12,17 @@ import {
   type PeriodPreset,
 } from '@/shared/lib/period';
 import { registerStoreReset } from '@/shared/lib/store-reset';
+import {
+  onStorageUserChange,
+  userLocalStorage,
+} from '@/shared/lib/user-storage';
 
 type LoadStatus = 'idle' | 'loading' | 'success' | 'error';
 
 interface CategoryReportState {
   /**
    * The report's own period, independent of the transactions page and
-   * persisted under its own key.
+   * persisted per user under its own key.
    */
   period: Period;
   preset: PeriodPreset;
@@ -70,12 +74,12 @@ export const useCategoryReportStore = create<CategoryReportState>()(
         }
       },
       // Bumping the id drops responses in flight, so they can't refill the
-      // store. `hasHydrated` stays: storage is read once per tab.
+      // store. The period stays: it is read back for the next user by
+      // `onStorageUserChange` below, and resetting it here would overwrite
+      // what the previous user left behind.
       reset: () => {
         latestRequestId++;
         set({
-          period: DEFAULT_PERIOD,
-          preset: DEFAULT_PERIOD_PRESET,
           report: null,
           status: 'idle',
           error: null,
@@ -84,7 +88,7 @@ export const useCategoryReportStore = create<CategoryReportState>()(
     }),
     {
       name: 'report-period',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => userLocalStorage),
       skipHydration: true,
       partialize: (state) => ({ period: state.period, preset: state.preset }),
       merge: (persisted, current) => ({
@@ -99,3 +103,6 @@ export const useCategoryReportStore = create<CategoryReportState>()(
 );
 
 registerStoreReset(() => useCategoryReportStore.getState().reset());
+// The first call comes from the session's own rehydration, so this is also
+// what reads the stored period back on page load.
+onStorageUserChange(() => void useCategoryReportStore.persist.rehydrate());

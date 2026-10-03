@@ -3,6 +3,7 @@ import { useCategoryReportStore } from '@web/entities/report/model/category-repo
 import { transactionsApi } from '@web/shared/api/transactions-api';
 import { DEFAULT_PERIOD } from '@web/shared/lib/period';
 import { resetRegisteredStores } from '@web/shared/lib/store-reset';
+import { setStorageUser } from '@web/shared/lib/user-storage';
 
 jest.mock('@web/shared/api/transactions-api', () => ({
   transactionsApi: { list: jest.fn(), summary: jest.fn() },
@@ -88,7 +89,7 @@ describe('useCategoryReportStore', () => {
     );
   });
 
-  it('is cleared with the session and drops a response in flight', async () => {
+  it('is cleared with the session, keeping its period, and drops a response in flight', async () => {
     let resolve!: (value: TransactionSummary) => void;
     summary.mockReturnValueOnce(new Promise((res) => (resolve = res)));
 
@@ -97,20 +98,45 @@ describe('useCategoryReportStore', () => {
     resolve(makeReport('10.00'));
     await pending;
 
+    // The period is the user's preference: the next user's is read back by
+    // `setStorageUser`, not reset here.
     expect(useCategoryReportStore.getState()).toMatchObject({
       report: null,
       status: 'idle',
-      period: DEFAULT_PERIOD,
-      preset: 'this-month',
+      period: SEPTEMBER,
+      preset: 'custom',
     });
   });
 });
 
 describe('persisted period', () => {
-  const STORAGE_KEY = 'report-period';
+  const STORAGE_KEY = 'report-period:user-a';
 
   beforeEach(() => {
     localStorage.clear();
+    setStorageUser('user-a');
+  });
+
+  afterAll(() => {
+    setStorageUser(null);
+  });
+
+  it('reads back the signed-in user\'s period, and the default when signed out', () => {
+    useCategoryReportStore
+      .getState()
+      .setPeriod({ dateFrom: '2026-03-04', dateTo: '2026-05-06' }, 'custom');
+
+    setStorageUser(null);
+    expect(useCategoryReportStore.getState()).toMatchObject({
+      period: DEFAULT_PERIOD,
+      preset: 'this-month',
+    });
+
+    setStorageUser('user-a');
+    expect(useCategoryReportStore.getState()).toMatchObject({
+      period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+      preset: 'custom',
+    });
   });
 
   it('writes its period under its own key', () => {

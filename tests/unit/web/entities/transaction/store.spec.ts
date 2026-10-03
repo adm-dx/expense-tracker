@@ -1,6 +1,7 @@
 import type { TransactionListItem } from '@expense-tracker/types';
 import { useTransactionsStore } from '@web/entities/transaction/model/store';
 import { transactionsApi } from '@web/shared/api/transactions-api';
+import { setStorageUser } from '@web/shared/lib/user-storage';
 
 jest.mock('@web/shared/api/transactions-api', () => ({
   transactionsApi: { list: jest.fn() },
@@ -52,7 +53,9 @@ beforeEach(() => {
   useTransactionsStore.setState({
     period: SEPTEMBER,
     preset: 'this-month',
-    // The real flag is flipped by `persist.rehydrate()` in the root layout.
+    pageSize: 10,
+    // The real flag is flipped by `persist.rehydrate()`, which the session
+    // triggers through `setStorageUser`.
     hasHydrated: true,
     currency: 'RSD',
   });
@@ -213,7 +216,7 @@ describe('useTransactionsStore', () => {
   });
 
   describe('reset', () => {
-    it('restores paging and the default period', () => {
+    it('clears the data and the page, but keeps the persisted filters', () => {
       useTransactionsStore.setState({
         page: 5,
         pageSize: 50,
@@ -222,12 +225,14 @@ describe('useTransactionsStore', () => {
 
       useTransactionsStore.getState().reset();
 
+      // The period and page size belong to the user: the next one's are read
+      // back through `setStorageUser`, not reset here.
       expect(useTransactionsStore.getState()).toMatchObject({
         page: 1,
-        pageSize: 10,
+        pageSize: 50,
         items: [],
         total: 0,
-        preset: 'this-month',
+        period: SEPTEMBER,
         status: 'idle',
       });
     });
@@ -287,7 +292,7 @@ describe('useTransactionsStore', () => {
   });
 
   describe('persisted period and page size', () => {
-    const STORAGE_KEY = 'transactions-period';
+    const STORAGE_KEY = 'transactions-period:user-a';
 
     function stored() {
       return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
@@ -295,6 +300,11 @@ describe('useTransactionsStore', () => {
 
     beforeEach(() => {
       localStorage.clear();
+      setStorageUser('user-a');
+    });
+
+    afterAll(() => {
+      setStorageUser(null);
     });
 
     it('writes the chosen period and page size, and nothing else', () => {
@@ -373,6 +383,33 @@ describe('useTransactionsStore', () => {
       useTransactionsStore.getState().reset();
 
       expect(useTransactionsStore.getState().hasHydrated).toBe(true);
+    });
+
+    it('keeps each user their own period across signing out and back in', () => {
+      const MARCH = { dateFrom: '2026-03-01', dateTo: '2026-03-31' };
+      useTransactionsStore.getState().setPeriod(MARCH, 'custom');
+      useTransactionsStore.getState().setPageSize(50);
+
+      // Signed out: the defaults, and nothing written over A's choice.
+      setStorageUser(null);
+      useTransactionsStore.getState().reset();
+      expect(useTransactionsStore.getState()).toMatchObject({
+        preset: 'this-month',
+        pageSize: 10,
+      });
+
+      // B has stored nothing yet.
+      setStorageUser('user-b');
+      useTransactionsStore.getState().reset();
+      expect(useTransactionsStore.getState().preset).toBe('this-month');
+
+      setStorageUser('user-a');
+      useTransactionsStore.getState().reset();
+      expect(useTransactionsStore.getState()).toMatchObject({
+        period: MARCH,
+        preset: 'custom',
+        pageSize: 50,
+      });
     });
   });
 });

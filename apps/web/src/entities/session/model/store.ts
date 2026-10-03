@@ -2,6 +2,7 @@ import type { AuthTokens } from '@expense-tracker/types';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { resetRegisteredStores } from '@/shared/lib/store-reset';
+import { setStorageUser } from '@/shared/lib/user-storage';
 import type { Session, SessionUser } from './types';
 
 interface SessionState {
@@ -23,7 +24,9 @@ export const useSessionStore = create<SessionState>()(
       refreshToken: null,
       hasHydrated: false,
       setSession: (session) => {
-        // Another user may have been signed in in this tab.
+        // Reads this user's stored filters back first; then the reset clears
+        // what another user may have loaded in this tab.
+        setStorageUser(session.user.id);
         resetRegisteredStores();
         set({
           user: session.user,
@@ -37,6 +40,7 @@ export const useSessionStore = create<SessionState>()(
           refreshToken: tokens.refreshToken,
         }),
       clearSession: () => {
+        setStorageUser(null);
         resetRegisteredStores();
         set({ user: null, accessToken: null, refreshToken: null });
       },
@@ -52,6 +56,9 @@ export const useSessionStore = create<SessionState>()(
         refreshToken: state.refreshToken,
       }),
       onRehydrateStorage: () => (state) => {
+        // Before the flag flips, so the period stores are read back by the
+        // time anything waits on the session.
+        setStorageUser(state?.user?.id ?? null);
         state?.setHasHydrated(true);
       },
     }
