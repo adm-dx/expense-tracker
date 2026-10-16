@@ -59,6 +59,7 @@ export {
   DropdownMenuTrigger,
 } from './dropdown-menu';
 export { Avatar, AvatarFallback, AvatarImage } from './avatar';
+export { Badge, badgeVariants, type BadgeProps } from './badge';
 export {
   Table,
   TableBody,

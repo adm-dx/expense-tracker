@@ -12,6 +12,10 @@ import { getErrorMessage } from '@/shared/lib/error';
 import { toDateInputValue, toIsoDate } from '@/shared/lib/format';
 import type { TransactionFormValues } from './schema';
 
+function toTagIds(tagId: string): string[] {
+  return tagId ? [tagId] : [];
+}
+
 function buildUpdate(
   transaction: Transaction,
   values: TransactionFormValues
@@ -26,6 +30,9 @@ function buildUpdate(
   if (values.type !== transaction.type) body.type = values.type;
   if (values.categoryId !== transaction.categoryId) {
     body.categoryId = values.categoryId;
+  }
+  if (values.tagId !== (transaction.tagIds[0] ?? '')) {
+    body.tagIds = toTagIds(values.tagId);
   }
   if (values.date !== toDateInputValue(transaction.date)) {
     body.date = toIsoDate(values.date);
@@ -55,6 +62,7 @@ export function useUpsertTransaction(options: {
         await transactionsApi.create({
           type: values.type,
           categoryId: values.categoryId,
+          tagIds: toTagIds(values.tagId),
           amount: Number(values.amount),
           currency: values.currency,
           date: toIsoDate(values.date),

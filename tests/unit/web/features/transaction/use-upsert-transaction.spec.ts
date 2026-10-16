@@ -32,6 +32,7 @@ const existing: Transaction = {
   description: 'Lunch',
   date: '2026-09-10T00:00:00.000Z',
   categoryId: 'cat-1',
+  tagIds: ['tag-1'],
   createdAt: '2026-09-10T00:00:00.000Z',
 };
 
@@ -39,6 +40,7 @@ const existing: Transaction = {
 const unchanged: TransactionFormValues = {
   type: 'EXPENSE',
   categoryId: 'cat-1',
+  tagId: 'tag-1',
   amount: '12.50',
   currency: 'RSD',
   date: '2026-09-10',
@@ -89,6 +91,7 @@ describe('creating', () => {
     await submit({
       type: 'INCOME',
       categoryId: 'cat-9',
+      tagId: '',
       amount: '1000',
       currency: 'EUR',
       date: '2026-09-16',
@@ -98,12 +101,21 @@ describe('creating', () => {
     expect(api.create).toHaveBeenCalledWith({
       type: 'INCOME',
       categoryId: 'cat-9',
+      tagIds: [],
       amount: 1000,
       currency: 'EUR',
       date: '2026-09-16T00:00:00.000Z',
       description: 'Salary',
     });
     expect(toast.success).toHaveBeenCalledWith('Transaction added');
+  });
+
+  it('sends the chosen tag as a one-item list', async () => {
+    await submit(unchanged);
+
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({ tagIds: ['tag-1'] })
+    );
   });
 
   it('leaves out an empty description rather than sending an empty string', async () => {
@@ -144,6 +156,8 @@ describe('editing', () => {
     ['the currency', { currency: 'HUF' as const }, { currency: 'HUF' }],
     ['the date', { date: '2026-09-11' }, { date: '2026-09-11T00:00:00.000Z' }],
     ['the description', { description: 'Dinner' }, { description: 'Dinner' }],
+    ['another tag', { tagId: 'tag-2' }, { tagIds: ['tag-2'] }],
+    ['the tag removed', { tagId: '' }, { tagIds: [] }],
   ])('sends %s on its own', async (_label, change, expected) => {
     await submit({ ...unchanged, ...change }, { transaction: existing });
 

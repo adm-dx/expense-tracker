@@ -21,6 +21,7 @@ function makeTransaction(id: string): TransactionListItem {
     description: null,
     date: '2026-09-10T00:00:00.000Z',
     categoryId: 'cat-1',
+    tagIds: [],
     createdAt: '2026-09-10T00:00:00.000Z',
   };
 }
@@ -235,6 +236,37 @@ describe('useTransactionsStore', () => {
         period: SEPTEMBER,
         status: 'idle',
       });
+    });
+  });
+
+  describe('tag filter', () => {
+    it('setTagId goes back to the first page and narrows the fetch', async () => {
+      list.mockResolvedValue(page([], 0));
+      useTransactionsStore.getState().setPage(3);
+
+      useTransactionsStore.getState().setTagId('tag-1');
+      await useTransactionsStore.getState().fetch();
+
+      expect(useTransactionsStore.getState().page).toBe(1);
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({ tagId: 'tag-1' })
+      );
+    });
+
+    it('sends no tagId for all tags', async () => {
+      list.mockResolvedValue(page([], 0));
+
+      await useTransactionsStore.getState().fetch();
+
+      expect(list.mock.calls[0]?.[0]).not.toHaveProperty('tagId');
+    });
+
+    it('is cleared by reset: a tag id means nothing to the next user', () => {
+      useTransactionsStore.getState().setTagId('tag-1');
+
+      useTransactionsStore.getState().reset();
+
+      expect(useTransactionsStore.getState().tagId).toBeNull();
     });
   });
 

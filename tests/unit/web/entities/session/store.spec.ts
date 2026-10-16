@@ -28,6 +28,7 @@ const transaction: TransactionListItem = {
   description: null,
   date: '2026-09-10T00:00:00.000Z',
   categoryId: 'cat-a',
+  tagIds: [],
   createdAt: '2026-09-10T00:00:00.000Z',
 };
 

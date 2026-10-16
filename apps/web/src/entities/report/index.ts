@@ -1,1 +1,4 @@
-export { useCategoryReportStore } from './model/category-report-store';
+export {
+  useCategoryReportStore,
+  type ReportGrouping,
+} from './model/category-report-store';

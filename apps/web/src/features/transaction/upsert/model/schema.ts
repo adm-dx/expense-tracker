@@ -6,6 +6,8 @@ const MAX_AMOUNT = 9_999_999_999.99;
 export const transactionSchema = z.object({
   type: z.enum(['INCOME', 'EXPENSE']),
   categoryId: z.string().min(1, 'Choose a category'),
+  /** One tag at most (`MAX_TAGS_PER_TRANSACTION`); '' for none. */
+  tagId: z.string(),
   amount: z
     .string()
     .trim()

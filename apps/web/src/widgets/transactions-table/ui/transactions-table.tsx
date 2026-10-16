@@ -10,6 +10,7 @@ import {
   useCategoriesStore,
   useCategoryMap,
 } from '@/entities/category';
+import { TagBadge, useTagMap, useTagsStore } from '@/entities/tag';
 import { useTransactionsStore } from '@/entities/transaction';
 import { cn } from '@/shared/lib/utils';
 import { formatAmount, formatDate, formatMoney } from '@/shared/lib/format';
@@ -30,7 +31,7 @@ import {
 } from '@/shared/ui';
 import { TransactionsPagination } from './transactions-pagination';
 
-const COLUMN_COUNT = 6;
+const COLUMN_COUNT = 7;
 
 type RowAction = { kind: 'edit' | 'delete'; transaction: Transaction } | null;
 
@@ -42,24 +43,36 @@ export function TransactionsTable() {
   const pageSize = useTransactionsStore((state) => state.pageSize);
   const period = useTransactionsStore((state) => state.period);
   const periodHydrated = useTransactionsStore((state) => state.hasHydrated);
+  const tagId = useTransactionsStore((state) => state.tagId);
   const currency = useTransactionsStore((state) => state.currency);
   const itemsCurrency = useTransactionsStore((state) => state.itemsCurrency);
   const fetchTransactions = useTransactionsStore((state) => state.fetch);
   const loadCategories = useCategoriesStore((state) => state.load);
   const categoryMap = useCategoryMap();
+  const loadTags = useTagsStore((state) => state.load);
+  const tagMap = useTagMap();
   const [action, setAction] = useState<RowAction>(null);
   // Kept separately so dialog content doesn't vanish during the close animation.
   const [selected, setSelected] = useState<Transaction>();
 
   useEffect(() => {
     void loadCategories();
-  }, [loadCategories]);
+    void loadTags();
+  }, [loadCategories, loadTags]);
 
   // `periodHydrated` is a dependency, not a condition: the store ignores a
   // fetch before it flips, and the stored period may equal the default.
   useEffect(() => {
     void fetchTransactions();
-  }, [page, pageSize, period, periodHydrated, currency, fetchTransactions]);
+  }, [
+    page,
+    pageSize,
+    period,
+    periodHydrated,
+    tagId,
+    currency,
+    fetchTransactions,
+  ]);
 
   function openAction(kind: 'edit' | 'delete', transaction: Transaction) {
     setSelected(transaction);
@@ -101,6 +114,7 @@ export function TransactionsTable() {
             <TableRow>
               <TableHead className="w-[120px]">Date</TableHead>
               <TableHead>Category</TableHead>
+              <TableHead>Tag</TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">
@@ -128,12 +142,18 @@ export function TransactionsTable() {
                   colSpan={COLUMN_COUNT}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  No transactions yet
+                  {tagId
+                    ? 'No transactions with this tag'
+                    : 'No transactions yet'}
                 </TableCell>
               </TableRow>
             )}
             {items.map((transaction) => {
               const category = categoryMap.get(transaction.categoryId);
+              const tags = transaction.tagIds.flatMap((id) => {
+                const tag = tagMap.get(id);
+                return tag ? [tag] : [];
+              });
               const isIncome = transaction.type === 'INCOME';
               return (
                 <TableRow key={transaction.id}>
@@ -150,6 +170,17 @@ export function TransactionsTable() {
                       )}
                       {category?.name ?? '—'}
                     </span>
+                  </TableCell>
+                  <TableCell className="max-w-[160px]">
+                    {tags.length > 0 ? (
+                      <span className="flex flex-wrap gap-1">
+                        {tags.map((tag) => (
+                          <TagBadge key={tag.id} name={tag.name} />
+                        ))}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="max-w-[240px] truncate text-muted-foreground">
                     {transaction.description ?? '—'}
