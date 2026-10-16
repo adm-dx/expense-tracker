@@ -4,13 +4,14 @@ import { CURRENCY_DETAILS, type Transaction } from '@expense-tracker/types';
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { DeleteTransactionDialog } from '@/features/transaction/delete';
+import { TransactionTagBadge } from '@/features/transaction/remove-tag';
 import { TransactionDialog } from '@/features/transaction/upsert';
 import {
   CategoryIcon,
   useCategoriesStore,
   useCategoryMap,
 } from '@/entities/category';
-import { TagBadge, useTagMap, useTagsStore } from '@/entities/tag';
+import { useTagMap, useTagsStore } from '@/entities/tag';
 import { useTransactionsStore } from '@/entities/transaction';
 import { cn } from '@/shared/lib/utils';
 import { formatAmount, formatDate, formatMoney } from '@/shared/lib/format';
@@ -175,7 +176,11 @@ export function TransactionsTable() {
                     {tags.length > 0 ? (
                       <span className="flex flex-wrap gap-1">
                         {tags.map((tag) => (
-                          <TagBadge key={tag.id} name={tag.name} />
+                          <TransactionTagBadge
+                            key={tag.id}
+                            transaction={transaction}
+                            tag={tag}
+                          />
                         ))}
                       </span>
                     ) : (
