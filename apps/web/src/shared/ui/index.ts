@@ -75,3 +75,4 @@ export {
   type SegmentedControlOption,
 } from './segmented-control';
 export { PeriodPicker } from './period-picker';
+export { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs';
