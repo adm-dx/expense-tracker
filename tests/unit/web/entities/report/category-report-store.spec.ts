@@ -121,7 +121,7 @@ describe('persisted period', () => {
     setStorageUser(null);
   });
 
-  it('reads back the signed-in user\'s period, and the default when signed out', () => {
+  it("reads back the signed-in user's period, and the default when signed out", () => {
     useCategoryReportStore
       .getState()
       .setPeriod({ dateFrom: '2026-03-04', dateTo: '2026-05-06' }, 'custom');
@@ -135,6 +135,30 @@ describe('persisted period', () => {
     setStorageUser('user-a');
     expect(useCategoryReportStore.getState()).toMatchObject({
       period: { dateFrom: '2026-03-04', dateTo: '2026-05-06' },
+      preset: 'custom',
+    });
+  });
+
+  it('reads the period back when its module loads after the session', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        state: { period: SEPTEMBER, preset: 'custom' },
+        version: 0,
+      })
+    );
+    // The reports page is a separate chunk: on a client-side navigation the
+    // store is created long after the session set the user.
+    let store!: typeof useCategoryReportStore;
+    jest.isolateModules(() => {
+      require('@web/shared/lib/user-storage').setStorageUser('user-a');
+      store =
+        require('@web/entities/report/model/category-report-store').useCategoryReportStore;
+    });
+
+    expect(store.getState()).toMatchObject({
+      hasHydrated: true,
+      period: SEPTEMBER,
       preset: 'custom',
     });
   });

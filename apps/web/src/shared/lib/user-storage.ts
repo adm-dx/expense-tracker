@@ -1,6 +1,8 @@
 type Listener = () => void;
 
 let currentUserId: string | null = null;
+/** False until the session first says who is signed in (or that nobody is). */
+let isUserKnown = false;
 const listeners = new Set<Listener>();
 
 /**
@@ -10,14 +12,22 @@ const listeners = new Set<Listener>();
  */
 export function setStorageUser(userId: string | null): void {
   currentUserId = userId;
+  isUserKnown = true;
   for (const listener of listeners) {
     listener();
   }
 }
 
-/** Runs `listener` after every `setStorageUser`, e.g. to rehydrate a store. */
+/**
+ * Runs `listener` after every `setStorageUser`, e.g. to rehydrate a store.
+ * A store whose module loads after the session has set the user (one only a
+ * lazily loaded page imports, or any store reached from /login after signing
+ * in) would otherwise never read its entry back, so the listener also runs
+ * right away once the user is known.
+ */
 export function onStorageUserChange(listener: Listener): void {
   listeners.add(listener);
+  if (isUserKnown) listener();
 }
 
 /**
