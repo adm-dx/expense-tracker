@@ -36,6 +36,12 @@ interface TransactionsState {
    */
   period: Period;
   preset: PeriodPreset;
+  /**
+   * Only transactions with this tag, for the table and the summary; null for
+   * all. Not persisted, and cleared by `reset`: a tag id means nothing to the
+   * next user.
+   */
+  tagId: string | null;
   /** False until the stored period is read back; nothing is fetched before. */
   hasHydrated: boolean;
   /**
@@ -55,6 +61,7 @@ interface TransactionsState {
   setPage: (page: number) => void;
   setPageSize: (pageSize: TransactionPageSize) => void;
   setPeriod: (period: Period, preset: PeriodPreset) => void;
+  setTagId: (tagId: string | null) => void;
   setCurrency: (currency: Currency) => void;
   setHasHydrated: (value: boolean) => void;
   /** Fetches the current page; call after any mutation to resync. */
@@ -88,6 +95,7 @@ export const useTransactionsStore = create<TransactionsState>()(
       pageSize: DEFAULT_PAGE_SIZE,
       period: DEFAULT_PERIOD,
       preset: DEFAULT_PERIOD_PRESET,
+      tagId: null,
       hasHydrated: false,
       currency: null,
       itemsCurrency: null,
@@ -97,11 +105,12 @@ export const useTransactionsStore = create<TransactionsState>()(
       setPage: (page) => set({ page: Math.max(1, page) }),
       setPageSize: (pageSize) => set({ pageSize, page: 1 }),
       setPeriod: (period, preset) => set({ period, preset, page: 1 }),
+      setTagId: (tagId) => set({ tagId, page: 1 }),
       // The row count doesn't depend on the currency, so the page stays put.
       setCurrency: (currency) => set({ currency }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
       fetch: async () => {
-        const { page, pageSize, period, currency, hasHydrated } = get();
+        const { page, pageSize, period, tagId, currency, hasHydrated } = get();
         // Waits for the stored period and currency, so the first load is the
         // one the user left behind instead of this month in EUR.
         if (currency === null || !hasHydrated) return;
@@ -114,6 +123,7 @@ export const useTransactionsStore = create<TransactionsState>()(
             dateFrom: toIsoDate(period.dateFrom),
             dateTo: toIsoEndOfDay(period.dateTo),
             currency,
+            ...(tagId ? { tagId } : {}),
           });
           if (requestId !== latestRequestId) return;
 
@@ -138,16 +148,18 @@ export const useTransactionsStore = create<TransactionsState>()(
           set({ status: 'error', error: getErrorMessage(err) });
         }
       },
-      // Keeps `currency` (a device preference, not the user's data) and the
-      // persisted period and page size: those are read back for the next
-      // user by `onStorageUserChange` below, and resetting them here would
-      // overwrite what the previous user left behind.
+      // Clears the tag filter, but keeps `currency` (a device preference, not
+      // the user's data) and the persisted period and page size: those are
+      // read back for the next user by `onStorageUserChange` below, and
+      // resetting them here would overwrite what the previous user left
+      // behind.
       reset: () => {
         latestRequestId++;
         set({
           items: [],
           total: 0,
           page: 1,
+          tagId: null,
           itemsCurrency: null,
           ratesDate: null,
           status: 'idle',

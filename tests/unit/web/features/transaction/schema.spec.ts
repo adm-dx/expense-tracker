@@ -6,6 +6,7 @@ import {
 const valid: TransactionFormValues = {
   type: 'EXPENSE',
   categoryId: 'cat-1',
+  tagId: '',
   amount: '12.50',
   currency: 'RSD',
   date: '2026-09-16',

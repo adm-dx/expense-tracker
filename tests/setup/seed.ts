@@ -21,6 +21,10 @@ export function seedCategory(userId: string, name = 'Groceries') {
   });
 }
 
+export function seedTag(userId: string, name = 'Trip') {
+  return prisma.tag.create({ data: { userId, name } });
+}
+
 export function seedTransaction(input: {
   userId: string;
   categoryId: string;
@@ -30,6 +34,7 @@ export function seedTransaction(input: {
   date?: string;
   createdAt?: string;
   description?: string;
+  tagIds?: string[];
 }) {
   return prisma.transaction.create({
     data: {
@@ -41,6 +46,7 @@ export function seedTransaction(input: {
       date: new Date(input.date ?? '2026-09-10T00:00:00.000Z'),
       ...(input.createdAt ? { createdAt: new Date(input.createdAt) } : {}),
       ...(input.description ? { description: input.description } : {}),
+      ...(input.tagIds ? { tagIds: input.tagIds } : {}),
     },
   });
 }

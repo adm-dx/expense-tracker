@@ -9,6 +9,7 @@ export interface PublicTransaction {
   description: string | null;
   date: Date;
   categoryId: string;
+  tagIds: string[];
   createdAt: Date;
 }
 
@@ -50,6 +51,27 @@ export interface TransactionSummary {
   totalExpense: string;
   balance: string;
   byCategory: TransactionCategorySummary[];
+  currency: Currency;
+  /** Date of the rates used; null when no conversion was needed. */
+  ratesDate: Date | null;
+}
+
+export interface TransactionTagSummary {
+  /** `null` for the transactions without a tag. */
+  tagId: string | null;
+  name: string | null;
+  type: TransactionType;
+  total: string;
+  /** How many transactions make up `total`. */
+  count: number;
+}
+
+export interface TransactionTagReport {
+  /** Start of the period that was applied, inclusive. */
+  dateFrom: Date;
+  /** End of the period that was applied, inclusive. */
+  dateTo: Date;
+  byTag: TransactionTagSummary[];
   currency: Currency;
   /** Date of the rates used; null when no conversion was needed. */
   ratesDate: Date | null;

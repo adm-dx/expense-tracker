@@ -1,6 +1,13 @@
-import { CURRENCIES, type Currency } from '@expense-tracker/types';
+import {
+  CURRENCIES,
+  MAX_TAGS_PER_TRANSACTION,
+  type Currency,
+} from '@expense-tracker/types';
 import { TransactionType } from '../../../generated/prisma/client';
 import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
   IsEnum,
   IsIn,
   IsISO8601,
@@ -40,4 +47,12 @@ export class CreateTransactionDto {
   @IsString()
   @IsNotEmpty()
   categoryId!: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_TAGS_PER_TRANSACTION)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  tagIds?: string[];
 }

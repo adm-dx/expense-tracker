@@ -2,8 +2,10 @@
 
 import type { Currency, Transaction } from '@expense-tracker/types';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { CategoryIcon, useCategoriesStore } from '@/entities/category';
+import { TagBadge, useTagsStore } from '@/entities/tag';
 import { useCurrencyStore } from '@/entities/currency';
 import { useEnabledCurrencies } from '@/entities/settings';
 import {
@@ -31,6 +33,9 @@ import {
 import { transactionSchema, type TransactionFormValues } from '../model/schema';
 import { useUpsertTransaction } from '../model/use-upsert-transaction';
 
+// Radix Select can't hold an empty value, so "no tag" gets a sentinel.
+const NO_TAG = 'none';
+
 /** A new transaction starts in the user's currency setting. */
 function toFormValues(
   transaction: Transaction | undefined,
@@ -40,6 +45,7 @@ function toFormValues(
     return {
       type: 'EXPENSE',
       categoryId: '',
+      tagId: '',
       amount: '',
       currency: defaultCurrency,
       date: todayDateInputValue(),
@@ -49,6 +55,7 @@ function toFormValues(
   return {
     type: transaction.type,
     categoryId: transaction.categoryId,
+    tagId: transaction.tagIds[0] ?? '',
     amount: transaction.amount,
     currency: transaction.currency,
     date: toDateInputValue(transaction.date),
@@ -76,6 +83,8 @@ export function TransactionForm({
       ? [...enabledCurrencies, transaction.currency]
       : enabledCurrencies;
   const categoriesStatus = useCategoriesStore((state) => state.status);
+  const tags = useTagsStore((state) => state.tags);
+  const loadTags = useTagsStore((state) => state.load);
   const noCategories =
     categoriesStatus !== 'loading' && categories.length === 0;
   const { submit, isPending } = useUpsertTransaction({
@@ -86,6 +95,10 @@ export function TransactionForm({
     resolver: zodResolver(transactionSchema),
     defaultValues: toFormValues(transaction, defaultCurrency),
   });
+
+  useEffect(() => {
+    void loadTags();
+  }, [loadTags]);
 
   return (
     <Form {...form}>
@@ -194,6 +207,41 @@ export function TransactionForm({
                   {categoriesStatus === 'error'
                     ? 'Failed to load categories. Close the dialog and try again.'
                     : 'You have no categories yet. Create one on the Categories page.'}
+                </FormDescription>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="tagId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tag</FormLabel>
+              <Select
+                value={field.value || NO_TAG}
+                onValueChange={(value) =>
+                  field.onChange(value === NO_TAG ? '' : value)
+                }
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value={NO_TAG}>No tag</SelectItem>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag.id} value={tag.id}>
+                      <TagBadge name={tag.name} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {tags.length === 0 && (
+                <FormDescription>
+                  Tags are optional; add them in the settings.
                 </FormDescription>
               )}
               <FormMessage />

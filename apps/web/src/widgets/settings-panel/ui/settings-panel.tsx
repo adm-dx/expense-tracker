@@ -4,6 +4,7 @@ import { DEFAULT_CURRENCY } from '@expense-tracker/types';
 import type { ReactNode } from 'react';
 import { ChangePasswordForm } from '@/features/auth/change-password';
 import { AddCategoryButton } from '@/features/category/upsert';
+import { AddTagButton } from '@/features/tag/upsert';
 import { CurrencyList } from '@/features/settings/currencies';
 import { DefaultCurrencySelect } from '@/features/settings/currency';
 import { LocationForm } from '@/features/settings/location';
@@ -21,6 +22,7 @@ import {
   CardTitle,
 } from '@/shared/ui';
 import { CategoriesList } from './categories-list';
+import { TagsList } from './tags-list';
 
 interface SectionProps {
   title: string;
@@ -120,6 +122,16 @@ export function SettingsPanel() {
         <div className="space-y-4">
           <AddCategoryButton />
           <CategoriesList />
+        </div>
+      </Section>
+
+      <Section
+        title="Tags"
+        description="An optional label on a transaction, across categories, e.g. a trip or a project. Deleting a tag removes it from its transactions."
+      >
+        <div className="space-y-4">
+          <AddTagButton />
+          <TagsList />
         </div>
       </Section>
 

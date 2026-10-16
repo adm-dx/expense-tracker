@@ -215,6 +215,51 @@ describe("one user can't reach another user's data", () => {
     ).toEqual(aliceTransactionBefore);
   });
 
+  it("can't use, rename or delete someone else's tag", async () => {
+    const aliceTag = await server()
+      .post('/tags')
+      .set(...bearer(alice))
+      .send({ name: 'Trip' })
+      .expect(201);
+    const tagId = aliceTag.body.id as string;
+    const bobCategoryId = (
+      await prisma.category.findFirstOrThrow({ where: { userId: bob.id } })
+    ).id;
+
+    const filed = await server()
+      .post('/transactions')
+      .set(...bearer(bob))
+      .send({
+        amount: 1,
+        currency: 'EUR',
+        type: 'EXPENSE',
+        date: '2026-09-10T00:00:00.000Z',
+        categoryId: bobCategoryId,
+        tagIds: [tagId],
+      });
+    const renamed = await attempt('patch', `/tags/${tagId}`, { name: 'Mine' });
+    const deleted = await attempt('delete', `/tags/${tagId}`);
+    const listed = await attempt('get', '/tags');
+
+    expect(filed.status).toBe(404);
+    expect(renamed.status).toBe(404);
+    expect(deleted.status).toBe(404);
+    expect(listed.body).toEqual([]);
+    expect(await prisma.tag.findUnique({ where: { id: tagId } })).toMatchObject(
+      { name: 'Trip' }
+    );
+  });
+
+  it("doesn't count someone else's transactions in the tag report", async () => {
+    const response = await attempt(
+      'get',
+      '/transactions/summary/by-tag?dateFrom=2026-09-01T00:00:00.000Z&dateTo=2026-09-30T23:59:59.999Z'
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.byTag).toEqual([]);
+  });
+
   it("leaves the owner's data untouched", async () => {
     const response = await server()
       .get('/transactions')

@@ -12,7 +12,7 @@ interface SummaryState {
   summary: TransactionSummary | null;
   status: LoadStatus;
   error: string | null;
-  /** Totals for the period and currency held by `useTransactionsStore`. */
+  /** Totals for the period, tag and currency held by `useTransactionsStore`. */
   fetch: () => Promise<void>;
   reset: () => void;
 }
@@ -26,7 +26,8 @@ export const useSummaryStore = create<SummaryState>()((set) => ({
   status: 'idle',
   error: null,
   fetch: async () => {
-    const { period, currency, hasHydrated } = useTransactionsStore.getState();
+    const { period, tagId, currency, hasHydrated } =
+      useTransactionsStore.getState();
     // Same wait as the table: the stored period and currency come first.
     if (currency === null || !hasHydrated) return;
     const requestId = ++latestRequestId;
@@ -36,6 +37,7 @@ export const useSummaryStore = create<SummaryState>()((set) => ({
         dateFrom: toIsoDate(period.dateFrom),
         dateTo: toIsoEndOfDay(period.dateTo),
         currency,
+        ...(tagId ? { tagId } : {}),
       });
       if (requestId !== latestRequestId) return;
       set({ summary, status: 'success' });

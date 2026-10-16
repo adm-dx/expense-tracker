@@ -110,4 +110,15 @@ describe('useSummaryStore', () => {
       expect.objectContaining({ currency: 'HUF' })
     );
   });
+
+  it('asks for the tag held by the transactions store', async () => {
+    summary.mockResolvedValue(makeSummary('10.00'));
+    useTransactionsStore.getState().setTagId('tag-1');
+
+    await useSummaryStore.getState().fetch();
+
+    expect(summary).toHaveBeenCalledWith(
+      expect.objectContaining({ tagId: 'tag-1' })
+    );
+  });
 });

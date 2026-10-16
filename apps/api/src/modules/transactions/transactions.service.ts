@@ -21,10 +21,13 @@ import {
   GetExchangeRatesQuery,
 } from '../exchange-rates/contracts';
 import { GetUserSettingsQuery } from '../settings/contracts';
+import { GetUserTagsQuery, type UserTag } from '../tags/contracts';
 import {
   PublicTransaction,
   TransactionCategorySummary,
   TransactionSummary,
+  TransactionTagReport,
+  TransactionTagSummary,
   TransactionsPage,
 } from './types';
 import {
@@ -37,13 +40,21 @@ import {
   DEFAULT_TRANSACTION_PAGE_SIZE,
   ListTransactionsQuery,
 } from './dto/list-transactions.query';
-import { SummaryQuery } from './dto/summary.query';
+import { SummaryPeriodQuery, SummaryQuery } from './dto/summary.query';
 
 const FOREIGN_KEY_VIOLATION = 'P2003';
 
 // The column is TEXT, but only validated codes are ever written to it.
 function storedCurrency(transaction: Transaction): Currency {
   return transaction.currency as Currency;
+}
+
+// The column is JSON; anything but an array of strings reads as no tags.
+function storedTagIds(transaction: Transaction): string[] {
+  const value = transaction.tagIds;
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === 'string')
+    : [];
 }
 
 @Injectable()
@@ -62,6 +73,7 @@ export class TransactionsService {
     if (query.dateTo) filters.dateTo = new Date(query.dateTo);
     if (query.type) filters.type = query.type;
     if (query.categoryId) filters.categoryId = query.categoryId;
+    if (query.tagId) filters.tagId = query.tagId;
 
     this.assertRangeOrder(filters.dateFrom, filters.dateTo);
 
@@ -105,6 +117,8 @@ export class TransactionsService {
   ): Promise<PublicTransaction> {
     await this.assertCategoryOwned(userId, dto.categoryId);
     await this.assertCurrencyEnabled(userId, dto.currency);
+    const tagIds = dto.tagIds ?? [];
+    await this.assertTagsOwned(userId, tagIds);
 
     return this.withCategoryHandling(async () => {
       const transaction = await this.transactionsRepository.create({
@@ -115,6 +129,7 @@ export class TransactionsService {
         description: this.normalizeDescription(dto.description),
         date: new Date(dto.date),
         categoryId: dto.categoryId,
+        tagIds,
       });
       return this.toPublic(transaction);
     });
@@ -132,6 +147,9 @@ export class TransactionsService {
     if (dto.currency !== undefined) {
       await this.assertCurrencyEnabled(userId, dto.currency);
     }
+    if (dto.tagIds !== undefined) {
+      await this.assertTagsOwned(userId, dto.tagIds);
+    }
 
     const data: Prisma.TransactionUncheckedUpdateInput = {};
     if (dto.amount !== undefined) data.amount = this.toDecimal(dto.amount);
@@ -142,6 +160,7 @@ export class TransactionsService {
     }
     if (dto.date !== undefined) data.date = new Date(dto.date);
     if (dto.categoryId !== undefined) data.categoryId = dto.categoryId;
+    if (dto.tagIds !== undefined) data.tagIds = dto.tagIds;
 
     return this.withCategoryHandling(async () => {
       const transaction = await this.transactionsRepository.update(id, data);
@@ -200,7 +219,7 @@ export class TransactionsService {
 
     const rows = await this.transactionsRepository.sumByTypeAndCategory(
       userId,
-      { dateFrom, dateTo }
+      { dateFrom, dateTo, ...(query.tagId ? { tagId: query.tagId } : {}) }
     );
     const categoryIds = [...new Set(rows.map((row) => row.categoryId))];
     const categories = categoryIds.length
@@ -274,6 +293,74 @@ export class TransactionsService {
     };
   }
 
+  /**
+   * Income and expense per tag over the period, converted like `summary`. A
+   * transaction without a tag, or with one that no longer exists, goes under
+   * `tagId: null`.
+   */
+  async tagSummary(
+    userId: string,
+    query: SummaryPeriodQuery
+  ): Promise<TransactionTagReport> {
+    const { dateFrom, dateTo } = this.resolveSummaryPeriod(query);
+    const currency = query.currency ?? DEFAULT_CURRENCY;
+
+    const rows = await this.transactionsRepository.sumByTypeAndTag(userId, {
+      dateFrom,
+      dateTo,
+    });
+    const tags = rows.some((row) => row.tagId !== null)
+      ? await this.queryBus.execute<GetUserTagsQuery, UserTag[]>(
+          new GetUserTagsQuery(userId)
+        )
+      : [];
+    const tagsById = new Map(tags.map((tag) => [tag.id, tag]));
+    const rates = await this.loadRatesIfNeeded(
+      rows.map((row) => row.currency),
+      currency
+    );
+
+    const groups = new Map<
+      string,
+      {
+        type: TransactionType;
+        tag: UserTag | null;
+        amount: Prisma.Decimal;
+        count: number;
+      }
+    >();
+    for (const row of rows) {
+      const amount = this.convert(row.amount, row.currency, currency, rates);
+      const tag = (row.tagId && tagsById.get(row.tagId)) || null;
+      const key = `${row.type}:${tag?.id ?? ''}`;
+      const group = groups.get(key);
+      if (group) {
+        group.amount = group.amount.plus(amount);
+        group.count += row.count;
+      } else {
+        groups.set(key, { type: row.type, tag, amount, count: row.count });
+      }
+    }
+
+    const byTag = [...groups.values()]
+      .sort((a, b) => b.amount.comparedTo(a.amount))
+      .map((group): TransactionTagSummary => ({
+        tagId: group.tag?.id ?? null,
+        name: group.tag?.name ?? null,
+        type: group.type,
+        total: group.amount.toFixed(2),
+        count: group.count,
+      }));
+
+    return {
+      dateFrom,
+      dateTo,
+      byTag,
+      currency,
+      ratesDate: rates?.date ?? null,
+    };
+  }
+
   toPublic(transaction: Transaction): PublicTransaction {
     return {
       id: transaction.id,
@@ -283,6 +370,7 @@ export class TransactionsService {
       description: transaction.description,
       date: transaction.date,
       categoryId: transaction.categoryId,
+      tagIds: storedTagIds(transaction),
       createdAt: transaction.createdAt,
     };
   }
@@ -300,6 +388,20 @@ export class TransactionsService {
       throw new BadRequestException(
         `${currency} is not one of your currencies; add it in the settings first`
       );
+    }
+  }
+
+  private async assertTagsOwned(
+    userId: string,
+    tagIds: string[]
+  ): Promise<void> {
+    if (tagIds.length === 0) return;
+    const tags = await this.queryBus.execute<GetUserTagsQuery, UserTag[]>(
+      new GetUserTagsQuery(userId)
+    );
+    const owned = new Set(tags.map((tag) => tag.id));
+    if (!tagIds.every((id) => owned.has(id))) {
+      throw new NotFoundException('Tag not found');
     }
   }
 
@@ -328,7 +430,7 @@ export class TransactionsService {
   }
 
   // Either month+year or dateFrom/dateTo; defaults to the current UTC month.
-  private resolveSummaryPeriod(query: SummaryQuery): {
+  private resolveSummaryPeriod(query: SummaryPeriodQuery): {
     dateFrom: Date;
     dateTo: Date;
   } {

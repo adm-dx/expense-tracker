@@ -1,14 +1,26 @@
 import type {
   TransactionCategorySummary,
+  TransactionTagSummary,
   TransactionType,
 } from '@expense-tracker/types';
 
 export type ReportMetric = 'amount' | 'count';
 
-export interface ReportRow {
-  categoryId: string;
+/** One group of the report (a category or a tag) for one type. */
+export interface ReportItem {
+  key: string;
   name: string;
-  icon: string;
+  /** A category icon; null for tags. */
+  icon: string | null;
+  type: TransactionType;
+  total: string;
+  count: number;
+}
+
+export interface ReportRow {
+  key: string;
+  name: string;
+  icon: string | null;
   /** Converted total, as a number for the chart; `total` keeps the exact string. */
   amount: number;
   total: string;
@@ -22,17 +34,47 @@ export interface ReportTotals {
   count: number;
 }
 
+export const NO_TAG_KEY = 'no-tag';
+export const NO_TAG_LABEL = 'No tag';
+
+export function categoryReportItems(
+  byCategory: readonly TransactionCategorySummary[]
+): ReportItem[] {
+  return byCategory.map((item) => ({
+    key: item.categoryId,
+    name: item.name,
+    icon: item.icon,
+    type: item.type,
+    total: item.total,
+    count: item.count,
+  }));
+}
+
+/** The untagged transactions become a row of their own, "No tag". */
+export function tagReportItems(
+  byTag: readonly TransactionTagSummary[]
+): ReportItem[] {
+  return byTag.map((item) => ({
+    key: item.tagId ?? NO_TAG_KEY,
+    name: item.name ?? NO_TAG_LABEL,
+    icon: null,
+    type: item.type,
+    total: item.total,
+    count: item.count,
+  }));
+}
+
 /**
- * The categories of one type, largest first by `metric` (ties by name, so the
+ * The groups of one type, largest first by `metric` (ties by name, so the
  * order is stable), each with its share of the type's total amount.
  */
 export function buildReportRows(
-  byCategory: readonly TransactionCategorySummary[],
+  items: readonly ReportItem[],
   type: TransactionType,
   metric: ReportMetric
 ): { rows: ReportRow[]; totals: ReportTotals } {
-  const ofType = byCategory.filter((item) => item.type === type);
-  // Summed in cents: floats would drift over many categories.
+  const ofType = items.filter((item) => item.type === type);
+  // Summed in cents: floats would drift over many groups.
   const totalCents = ofType.reduce(
     (sum, item) => sum + Math.round(Number(item.total) * 100),
     0
@@ -46,7 +88,7 @@ export function buildReportRows(
     .map((item): ReportRow => {
       const amount = Number(item.total);
       return {
-        categoryId: item.categoryId,
+        key: item.key,
         name: item.name,
         icon: item.icon,
         amount,

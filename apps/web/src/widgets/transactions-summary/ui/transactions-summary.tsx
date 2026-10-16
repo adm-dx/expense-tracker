@@ -3,6 +3,7 @@
 import { Scale, TrendingDown, TrendingUp } from 'lucide-react';
 import { useEffect } from 'react';
 import { PeriodFilter } from '@/features/transaction/period-filter';
+import { TagFilter } from '@/features/transaction/tag-filter';
 import { useSummaryStore, useTransactionsStore } from '@/entities/transaction';
 import { formatDate, formatMoney } from '@/shared/lib/format';
 import { formatPeriod } from '@/shared/lib/period';
@@ -12,6 +13,7 @@ import { SummaryCard } from './summary-card';
 export function TransactionsSummary() {
   const period = useTransactionsStore((state) => state.period);
   const periodHydrated = useTransactionsStore((state) => state.hasHydrated);
+  const tagId = useTransactionsStore((state) => state.tagId);
   const currency = useTransactionsStore((state) => state.currency);
   const summary = useSummaryStore((state) => state.summary);
   const status = useSummaryStore((state) => state.status);
@@ -22,7 +24,7 @@ export function TransactionsSummary() {
   // has to retrigger the load.
   useEffect(() => {
     void fetchSummary();
-  }, [period, periodHydrated, currency, fetchSummary]);
+  }, [period, periodHydrated, tagId, currency, fetchSummary]);
 
   const isLoading = status === 'loading' || status === 'idle';
   const caption = summary?.ratesDate
@@ -32,7 +34,10 @@ export function TransactionsSummary() {
 
   return (
     <section className="space-y-4">
-      <PeriodFilter />
+      <div className="flex flex-wrap items-end gap-3">
+        <PeriodFilter />
+        <TagFilter />
+      </div>
       {status === 'error' && (
         <Alert variant="destructive">
           <AlertDescription className="flex items-center justify-between gap-4">

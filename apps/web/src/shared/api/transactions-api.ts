@@ -2,9 +2,11 @@ import type {
   CreateTransactionRequest,
   ListTransactionsParams,
   SummaryParams,
+  TagSummaryParams,
   Transaction,
   TransactionsPage,
   TransactionSummary,
+  TransactionTagReport,
   UpdateTransactionRequest,
 } from '@expense-tracker/types';
 import { httpClient } from './http-client';
@@ -16,6 +18,10 @@ export const transactionsApi = {
     }),
   summary: (params: SummaryParams = {}) =>
     httpClient.get<TransactionSummary>('/transactions/summary', {
+      params: { ...params },
+    }),
+  tagSummary: (params: TagSummaryParams = {}) =>
+    httpClient.get<TransactionTagReport>('/transactions/summary/by-tag', {
       params: { ...params },
     }),
   create: (body: CreateTransactionRequest) =>

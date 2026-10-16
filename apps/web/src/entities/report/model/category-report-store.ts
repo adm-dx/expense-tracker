@@ -1,4 +1,8 @@
-import type { Currency, TransactionSummary } from '@expense-tracker/types';
+import type {
+  Currency,
+  TransactionSummary,
+  TransactionTagReport,
+} from '@expense-tracker/types';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { transactionsApi } from '@/shared/api/transactions-api';
@@ -19,6 +23,8 @@ import {
 
 type LoadStatus = 'idle' | 'loading' | 'success' | 'error';
 
+export type ReportGrouping = 'category' | 'tag';
+
 interface CategoryReportState {
   /**
    * The report's own period, independent of the transactions page and
@@ -28,12 +34,20 @@ interface CategoryReportState {
   preset: PeriodPreset;
   /** False until the stored period is read back; nothing is fetched before. */
   hasHydrated: boolean;
+  /** What the report groups by; `fetch` loads only that one. */
+  groupBy: ReportGrouping;
   report: TransactionSummary | null;
+  tagReport: TransactionTagReport | null;
+  /** Of the last `fetch`, i.e. of the report for `groupBy`. */
   status: LoadStatus;
   error: string | null;
   setPeriod: (period: Period, preset: PeriodPreset) => void;
+  setGroupBy: (groupBy: ReportGrouping) => void;
   setHasHydrated: (value: boolean) => void;
-  /** Count and total per category for `period`, converted to `currency`. */
+  /**
+   * Count and total per category or per tag (`groupBy`) for `period`,
+   * converted to `currency`.
+   */
   fetch: (currency: Currency) => Promise<void>;
   reset: () => void;
 }
@@ -48,26 +62,36 @@ export const useCategoryReportStore = create<CategoryReportState>()(
       period: DEFAULT_PERIOD,
       preset: DEFAULT_PERIOD_PRESET,
       hasHydrated: false,
+      groupBy: 'category',
       report: null,
+      tagReport: null,
       status: 'idle',
       error: null,
       setPeriod: (period, preset) => set({ period, preset }),
+      setGroupBy: (groupBy) => set({ groupBy }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
       fetch: async (currency) => {
-        const { period, hasHydrated } = get();
+        const { period, groupBy, hasHydrated } = get();
         // Waits for the stored period, so the first load is the one the user
         // left behind instead of this month.
         if (!hasHydrated) return;
         const requestId = ++latestRequestId;
         set({ status: 'loading', error: null });
+        const params = {
+          dateFrom: toIsoDate(period.dateFrom),
+          dateTo: toIsoEndOfDay(period.dateTo),
+          currency,
+        };
         try {
-          const report = await transactionsApi.summary({
-            dateFrom: toIsoDate(period.dateFrom),
-            dateTo: toIsoEndOfDay(period.dateTo),
-            currency,
-          });
-          if (requestId !== latestRequestId) return;
-          set({ report, status: 'success' });
+          if (groupBy === 'tag') {
+            const tagReport = await transactionsApi.tagSummary(params);
+            if (requestId !== latestRequestId) return;
+            set({ tagReport, status: 'success' });
+          } else {
+            const report = await transactionsApi.summary(params);
+            if (requestId !== latestRequestId) return;
+            set({ report, status: 'success' });
+          }
         } catch (err) {
           if (requestId !== latestRequestId) return;
           set({ status: 'error', error: getErrorMessage(err) });
@@ -81,6 +105,7 @@ export const useCategoryReportStore = create<CategoryReportState>()(
         latestRequestId++;
         set({
           report: null,
+          tagReport: null,
           status: 'idle',
           error: null,
         });

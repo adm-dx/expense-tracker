@@ -100,6 +100,26 @@ export interface DeleteCategoryOptions {
   reassignTo?: string;
 }
 
+/** How many tags a transaction may carry; stored as an array so it can grow. */
+export const MAX_TAGS_PER_TRANSACTION = 1;
+
+export interface Tag {
+  id: string;
+  name: string;
+  /** How many transactions carry this tag. */
+  transactionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTagRequest {
+  name: string;
+}
+
+export interface UpdateTagRequest {
+  name?: string;
+}
+
 export type TransactionType = 'INCOME' | 'EXPENSE';
 
 // Every currency a user can enable. All of them are published by the exchange
@@ -180,6 +200,8 @@ export interface Transaction {
   description: string | null;
   date: string;
   categoryId: string;
+  /** Ids of the user's tags, at most `MAX_TAGS_PER_TRANSACTION`. */
+  tagIds: string[];
   createdAt: string;
 }
 
@@ -203,6 +225,8 @@ export interface CreateTransactionRequest {
   /** ISO 8601 date string */
   date: string;
   categoryId: string;
+  /** Defaults to no tags. */
+  tagIds?: string[];
 }
 
 export interface UpdateTransactionRequest {
@@ -212,6 +236,8 @@ export interface UpdateTransactionRequest {
   description?: string | null;
   date?: string;
   categoryId?: string;
+  /** `[]` clears the tags. */
+  tagIds?: string[];
 }
 
 export interface TransactionFilters {
@@ -219,6 +245,8 @@ export interface TransactionFilters {
   dateTo?: string;
   type?: TransactionType;
   categoryId?: string;
+  /** Only transactions carrying this tag. */
+  tagId?: string;
 }
 
 export const TRANSACTION_PAGE_SIZES = [10, 20, 50] as const;
@@ -252,6 +280,8 @@ export interface SummaryParams {
   dateTo?: string;
   /** Currency of the totals; defaults to EUR. */
   currency?: Currency;
+  /** Only transactions carrying this tag. */
+  tagId?: string;
 }
 
 export interface TransactionSummary {
@@ -262,6 +292,36 @@ export interface TransactionSummary {
   totalExpense: string;
   balance: string;
   byCategory: TransactionCategorySummary[];
+  /** The currency of every total. */
+  currency: Currency;
+  /** Date of the exchange rates used; null when no conversion was needed. */
+  ratesDate: string | null;
+}
+
+export interface TransactionTagSummary {
+  /** `null` for the transactions without a tag. */
+  tagId: string | null;
+  /** `null` for the transactions without a tag. */
+  name: string | null;
+  type: TransactionType;
+  total: string;
+  /** How many transactions make up `total`. */
+  count: number;
+}
+
+export interface TagSummaryParams {
+  /** ISO 8601; both bounds are inclusive. Defaults to the current UTC month. */
+  dateFrom?: string;
+  dateTo?: string;
+  /** Currency of the totals; defaults to EUR. */
+  currency?: Currency;
+}
+
+export interface TransactionTagReport {
+  /** The period that was actually applied, both bounds inclusive. */
+  dateFrom: string;
+  dateTo: string;
+  byTag: TransactionTagSummary[];
   /** The currency of every total. */
   currency: Currency;
   /** Date of the exchange rates used; null when no conversion was needed. */
