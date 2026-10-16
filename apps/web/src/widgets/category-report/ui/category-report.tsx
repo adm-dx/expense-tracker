@@ -4,8 +4,7 @@ import type { TransactionType } from '@expense-tracker/types';
 import { useEffect, useState } from 'react';
 import { CategoryIcon } from '@/entities/category';
 import { useCurrencyStore } from '@/entities/currency';
-import { useCategoryReportStore, type ReportGrouping } from '@/entities/report';
-import { TagBadge } from '@/entities/tag';
+import { useCategoryReportStore } from '@/entities/report';
 import { formatDate, formatMoney } from '@/shared/lib/format';
 import { formatPeriod } from '@/shared/lib/period';
 import {
@@ -31,16 +30,9 @@ import {
 import {
   buildReportRows,
   categoryReportItems,
-  NO_TAG_KEY,
-  tagReportItems,
   type ReportMetric,
 } from '../lib/report-rows';
 import { CategoryReportChart } from './category-report-chart';
-
-const GROUPING_OPTIONS: readonly SegmentedControlOption<ReportGrouping>[] = [
-  { value: 'category', label: 'Category' },
-  { value: 'tag', label: 'Tag' },
-];
 
 const TYPE_OPTIONS: readonly SegmentedControlOption<TransactionType>[] = [
   { value: 'EXPENSE', label: 'Expenses' },
@@ -56,23 +48,17 @@ const shareFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
 });
 
-/**
- * Count and total of transactions per category or per tag, for a period of
- * its own.
- */
+/** Count and total of transactions per category, for a period of its own. */
 export function CategoryReport() {
   const currency = useCurrencyStore((state) => state.currency);
   const currencyHydrated = useCurrencyStore((state) => state.hasHydrated);
   const period = useCategoryReportStore((state) => state.period);
   const periodHydrated = useCategoryReportStore((state) => state.hasHydrated);
   const preset = useCategoryReportStore((state) => state.preset);
-  const groupBy = useCategoryReportStore((state) => state.groupBy);
-  const categoryReport = useCategoryReportStore((state) => state.report);
-  const tagReport = useCategoryReportStore((state) => state.tagReport);
+  const report = useCategoryReportStore((state) => state.report);
   const status = useCategoryReportStore((state) => state.status);
   const error = useCategoryReportStore((state) => state.error);
   const setPeriod = useCategoryReportStore((state) => state.setPeriod);
-  const setGroupBy = useCategoryReportStore((state) => state.setGroupBy);
   const fetchReport = useCategoryReportStore((state) => state.fetch);
   const [type, setType] = useState<TransactionType>('EXPENSE');
   const [metric, setMetric] = useState<ReportMetric>('amount');
@@ -81,20 +67,9 @@ export function CategoryReport() {
   // store itself waits for the stored period, hence the extra dependency.
   useEffect(() => {
     if (currencyHydrated) void fetchReport(currency);
-  }, [
-    period,
-    periodHydrated,
-    groupBy,
-    currency,
-    currencyHydrated,
-    fetchReport,
-  ]);
+  }, [period, periodHydrated, currency, currencyHydrated, fetchReport]);
 
-  const byTag = groupBy === 'tag';
-  const report = byTag ? tagReport : categoryReport;
-  const items = byTag
-    ? tagReportItems(tagReport?.byTag ?? [])
-    : categoryReportItems(categoryReport?.byCategory ?? []);
+  const items = categoryReportItems(report?.byCategory ?? []);
   const isLoading = status === 'loading' || status === 'idle';
   const { rows, totals } = report
     ? buildReportRows(items, type, metric)
@@ -124,17 +99,10 @@ export function CategoryReport() {
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 space-y-0">
           <div className="space-y-1.5">
-            <CardTitle>{byTag ? 'By tag' : 'By category'}</CardTitle>
+            <CardTitle>By category</CardTitle>
             <CardDescription>{caption}</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <SegmentedControl
-              name="report-grouping"
-              aria-label="Group by"
-              value={groupBy}
-              options={GROUPING_OPTIONS}
-              onValueChange={setGroupBy}
-            />
             <SegmentedControl
               name="report-type"
               aria-label="Transaction type"
@@ -173,7 +141,7 @@ export function CategoryReport() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{byTag ? 'Tag' : 'Category'}</TableHead>
+                      <TableHead>Category</TableHead>
                       <TableHead className="text-right">Transactions</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead className="text-right">Share</TableHead>
@@ -183,21 +151,13 @@ export function CategoryReport() {
                     {rows.map((row) => (
                       <TableRow key={row.key}>
                         <TableCell>
-                          {row.icon !== null ? (
-                            <span className="flex items-center gap-2">
-                              <CategoryIcon
-                                icon={row.icon}
-                                className="text-muted-foreground"
-                              />
-                              {row.name}
-                            </span>
-                          ) : row.key === NO_TAG_KEY ? (
-                            <span className="text-muted-foreground">
-                              {row.name}
-                            </span>
-                          ) : (
-                            <TagBadge name={row.name} />
-                          )}
+                          <span className="flex items-center gap-2">
+                            <CategoryIcon
+                              icon={row.icon}
+                              className="text-muted-foreground"
+                            />
+                            {row.name}
+                          </span>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {row.count}

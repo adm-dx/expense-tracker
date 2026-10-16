@@ -30,6 +30,15 @@ export interface TransactionTagSumRow {
   count: number;
 }
 
+export interface TransactionMonthSumRow {
+  /** `YYYY-MM`, a UTC month. */
+  month: string;
+  type: TransactionType;
+  currency: Currency;
+  amount: Prisma.Decimal;
+  count: number;
+}
+
 export interface TransactionSumRow {
   type: TransactionType;
   categoryId: string;
@@ -142,6 +151,40 @@ export class TransactionsRepository {
     return rows.map((row) => ({
       type: row.type,
       tagId: row.tagId,
+      // The column is TEXT, but only validated codes are ever written to it.
+      currency: row.currency as Currency,
+      amount: new Prisma.Decimal(row.amount),
+      count: row.count,
+    }));
+  }
+
+  /**
+   * Sums per (UTC month, type, currency) of the user's transactions that
+   * carry the tag, whenever they were.
+   */
+  async sumByMonthForTag(
+    userId: string,
+    tagId: string
+  ): Promise<TransactionMonthSumRow[]> {
+    const rows = await this.prisma.$queryRaw<
+      {
+        month: string;
+        type: TransactionType;
+        currency: string;
+        amount: Prisma.Decimal;
+        count: number;
+      }[]
+    >`
+      SELECT to_char(t."date", 'YYYY-MM') AS "month", t."type", t."currency",
+             SUM(t."amount") AS "amount", COUNT(*)::int AS "count"
+      FROM "transactions" t
+      WHERE t."userId" = ${userId}
+        AND t."tagIds" @> ${JSON.stringify([tagId])}::jsonb
+      GROUP BY 1, t."type", t."currency"
+    `;
+    return rows.map((row) => ({
+      month: row.month,
+      type: row.type,
       // The column is TEXT, but only validated codes are ever written to it.
       currency: row.currency as Currency,
       amount: new Prisma.Decimal(row.amount),

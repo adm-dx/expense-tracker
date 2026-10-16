@@ -13,7 +13,11 @@ import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { ListTransactionsQuery } from './dto/list-transactions.query';
-import { SummaryPeriodQuery, SummaryQuery } from './dto/summary.query';
+import {
+  SummaryPeriodQuery,
+  SummaryQuery,
+  TagHistoryQuery,
+} from './dto/summary.query';
 import {
   CurrentUser,
   type RequestUser,
@@ -48,6 +52,14 @@ export class TransactionsController {
     @Query() query: SummaryPeriodQuery
   ) {
     return this.transactionsService.tagSummary(user.sub, query);
+  }
+
+  @Get('summary/by-tag/history')
+  tagHistory(
+    @CurrentUser() user: RequestUser,
+    @Query() query: TagHistoryQuery
+  ) {
+    return this.transactionsService.tagHistory(user.sub, query);
   }
 
   @Get(':id')

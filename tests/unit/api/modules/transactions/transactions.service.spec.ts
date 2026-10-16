@@ -82,6 +82,7 @@ describe('TransactionsService', () => {
       delete: jest.fn(),
       sumByTypeAndCategory: jest.fn(),
       sumByTypeAndTag: jest.fn(),
+      sumByMonthForTag: jest.fn(),
       countByCurrency: jest.fn(),
       convertCurrency: jest.fn(),
     } as unknown as jest.Mocked<TransactionsRepository>;
@@ -920,6 +921,129 @@ describe('TransactionsService', () => {
       await service.tagSummary('user-1', { currency: 'EUR' });
 
       expect(queryBus.execute).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('tagHistory', () => {
+    it('converts per currency, merges per month and fills the months between', async () => {
+      repository.sumByMonthForTag.mockResolvedValue([
+        {
+          month: '2026-07',
+          type: TransactionType.EXPENSE,
+          currency: 'RSD',
+          amount: new Prisma.Decimal('1175.00'),
+          count: 2,
+        },
+        {
+          month: '2026-07',
+          type: TransactionType.EXPENSE,
+          currency: 'EUR',
+          amount: new Prisma.Decimal('5.00'),
+          count: 1,
+        },
+        {
+          month: '2026-04',
+          type: TransactionType.INCOME,
+          currency: 'EUR',
+          amount: new Prisma.Decimal('100.00'),
+          count: 1,
+        },
+      ]);
+
+      const result = await service.tagHistory('user-1', {
+        tagId: 'tag-1',
+        currency: 'EUR',
+      });
+
+      expect(repository.sumByMonthForTag).toHaveBeenCalledWith(
+        'user-1',
+        'tag-1'
+      );
+      expect(result).toMatchObject({
+        tagId: 'tag-1',
+        totalIncome: '100.00',
+        totalExpense: '15.00',
+        balance: '85.00',
+        currency: 'EUR',
+        ratesDate: RATES.date,
+      });
+      expect(result.byMonth).toEqual([
+        {
+          month: '2026-04',
+          income: '100.00',
+          expense: '0.00',
+          incomeCount: 1,
+          expenseCount: 0,
+        },
+        {
+          month: '2026-05',
+          income: '0.00',
+          expense: '0.00',
+          incomeCount: 0,
+          expenseCount: 0,
+        },
+        {
+          month: '2026-06',
+          income: '0.00',
+          expense: '0.00',
+          incomeCount: 0,
+          expenseCount: 0,
+        },
+        {
+          month: '2026-07',
+          income: '0.00',
+          expense: '15.00',
+          incomeCount: 0,
+          expenseCount: 3,
+        },
+      ]);
+    });
+
+    it('fills the months across a new year', async () => {
+      repository.sumByMonthForTag.mockResolvedValue(
+        ['2025-11', '2026-02'].map((month) => ({
+          month,
+          type: TransactionType.EXPENSE,
+          currency: 'EUR',
+          amount: new Prisma.Decimal('1.00'),
+          count: 1,
+        }))
+      );
+
+      const result = await service.tagHistory('user-1', { tagId: 'tag-1' });
+
+      expect(result.byMonth.map((month) => month.month)).toEqual([
+        '2025-11',
+        '2025-12',
+        '2026-01',
+        '2026-02',
+      ]);
+    });
+
+    it('is empty for a tag without transactions, asking for no rates', async () => {
+      repository.sumByMonthForTag.mockResolvedValue([]);
+
+      const result = await service.tagHistory('user-1', { tagId: 'tag-1' });
+
+      expect(result).toEqual({
+        tagId: 'tag-1',
+        totalIncome: '0.00',
+        totalExpense: '0.00',
+        balance: '0.00',
+        byMonth: [],
+        currency: 'EUR',
+        ratesDate: null,
+      });
+      expect(queryBus.execute).not.toHaveBeenCalledWith(
+        expect.any(GetExchangeRatesQuery)
+      );
+    });
+
+    it("throws NotFoundException for a tag that isn't the caller's", async () => {
+      await expect(
+        service.tagHistory('user-1', { tagId: 'someone-elses' })
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(repository.sumByMonthForTag).not.toHaveBeenCalled();
     });
   });
 });

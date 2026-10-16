@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
+  IsNotEmpty,
   IsISO8601,
   IsOptional,
   IsString,
@@ -45,4 +46,16 @@ export class SummaryQuery extends SummaryPeriodQuery {
   @IsOptional()
   @IsString()
   tagId?: string;
+}
+
+/** The report of one tag over all time. */
+export class TagHistoryQuery {
+  @IsString()
+  @IsNotEmpty()
+  tagId!: string;
+
+  /** Currency of the totals; defaults to EUR. */
+  @IsOptional()
+  @IsIn(CURRENCIES)
+  currency?: Currency;
 }

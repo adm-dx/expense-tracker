@@ -1,8 +1,6 @@
 import type {
   TransactionCategorySummary,
   TransactionSummary,
-  TransactionTagReport,
-  TransactionTagSummary,
 } from '@expense-tracker/types';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -13,14 +11,12 @@ import { CategoryReport } from '@web/widgets/category-report';
 import {
   buildReportRows,
   categoryReportItems,
-  tagReportItems,
 } from '@web/widgets/category-report/lib/report-rows';
 
 jest.mock('@web/shared/api/transactions-api', () => ({
   transactionsApi: {
     list: jest.fn(),
     summary: jest.fn(),
-    tagSummary: jest.fn(),
   },
 }));
 
@@ -43,34 +39,6 @@ jest.mock('@web/widgets/category-report/ui/category-report-chart', () => ({
 const summary = transactionsApi.summary as jest.MockedFunction<
   typeof transactionsApi.summary
 >;
-const tagSummary = transactionsApi.tagSummary as jest.MockedFunction<
-  typeof transactionsApi.tagSummary
->;
-
-function tag(
-  name: string | null,
-  type: TransactionTagSummary['type'],
-  total: string,
-  count: number
-): TransactionTagSummary {
-  return { tagId: name && `tag-${name}`, name, type, total, count };
-}
-
-function makeTagReport(
-  byTag: TransactionTagSummary[] = [
-    tag('Trip', 'EXPENSE', '700.00', 5),
-    tag(null, 'EXPENSE', '300.00', 12),
-    tag('Work', 'INCOME', '2000.00', 1),
-  ]
-): TransactionTagReport {
-  return {
-    dateFrom: '2026-09-01T00:00:00.000Z',
-    dateTo: '2026-09-30T23:59:59.999Z',
-    byTag,
-    currency: 'EUR',
-    ratesDate: null,
-  };
-}
 
 function category(
   name: string,
@@ -113,9 +81,8 @@ function makeReport(
 
 beforeEach(() => {
   summary.mockReset();
-  tagSummary.mockReset();
   useCategoryReportStore.getState().reset();
-  useCategoryReportStore.setState({ hasHydrated: true, groupBy: 'category' });
+  useCategoryReportStore.setState({ hasHydrated: true });
   useCurrencyStore.setState({ currency: 'EUR', hasHydrated: true });
 });
 
@@ -152,19 +119,6 @@ describe('buildReportRows', () => {
     );
 
     expect(totals.amount).toBe(0.3);
-  });
-
-  it('names the untagged row "No tag" and keys it apart from the tags', () => {
-    const { rows } = buildReportRows(
-      tagReportItems(makeTagReport().byTag),
-      'EXPENSE',
-      'amount'
-    );
-
-    expect(rows.map((row) => [row.key, row.name, row.icon])).toEqual([
-      ['tag-Trip', 'Trip', null],
-      ['no-tag', 'No tag', null],
-    ]);
   });
 });
 
@@ -256,47 +210,5 @@ describe('CategoryReport', () => {
 
     expect(summary).toHaveBeenCalledTimes(2);
     expect(useCategoryReportStore.getState().preset).toBe('this-year');
-  });
-
-  it('groups by tag, with the untagged transactions as "No tag"', async () => {
-    const user = userEvent.setup();
-    summary.mockResolvedValue(makeReport());
-    tagSummary.mockResolvedValue(makeTagReport());
-    render(<CategoryReport />);
-    await screen.findByRole('table');
-
-    await user.click(screen.getByRole('radio', { name: 'Tag' }));
-
-    expect(await screen.findByText('By tag')).toBeInTheDocument();
-    expect(tagSummary).toHaveBeenCalledWith(
-      expect.objectContaining({ currency: 'EUR' })
-    );
-    expect(tableRows()).toEqual([
-      'TagTransactionsAmountShare',
-      'Trip5700.00 EUR (€)70%',
-      'No tag12300.00 EUR (€)30%',
-      'Total171,000.00 EUR (€)',
-    ]);
-
-    await user.click(screen.getByRole('radio', { name: 'Income' }));
-    expect(screen.getByTestId('chart')).toHaveTextContent('amount: Work');
-  });
-
-  it('goes back to the categories without refetching the tags', async () => {
-    const user = userEvent.setup();
-    summary.mockResolvedValue(makeReport());
-    tagSummary.mockResolvedValue(makeTagReport());
-    render(<CategoryReport />);
-    await screen.findByRole('table');
-    await user.click(screen.getByRole('radio', { name: 'Tag' }));
-    await screen.findByText('By tag');
-
-    await user.click(screen.getByRole('radio', { name: 'Category' }));
-
-    expect(await screen.findByText('By category')).toBeInTheDocument();
-    expect(tagSummary).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('chart')).toHaveTextContent(
-      'amount: Rent, Groceries, Transport'
-    );
   });
 });

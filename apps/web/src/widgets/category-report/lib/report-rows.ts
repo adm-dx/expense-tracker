@@ -1,17 +1,15 @@
 import type {
   TransactionCategorySummary,
-  TransactionTagSummary,
   TransactionType,
 } from '@expense-tracker/types';
 
 export type ReportMetric = 'amount' | 'count';
 
-/** One group of the report (a category or a tag) for one type. */
+/** One category of the report for one type. */
 export interface ReportItem {
   key: string;
   name: string;
-  /** A category icon; null for tags. */
-  icon: string | null;
+  icon: string;
   type: TransactionType;
   total: string;
   count: number;
@@ -20,7 +18,7 @@ export interface ReportItem {
 export interface ReportRow {
   key: string;
   name: string;
-  icon: string | null;
+  icon: string;
   /** Converted total, as a number for the chart; `total` keeps the exact string. */
   amount: number;
   total: string;
@@ -33,9 +31,6 @@ export interface ReportTotals {
   amount: number;
   count: number;
 }
-
-export const NO_TAG_KEY = 'no-tag';
-export const NO_TAG_LABEL = 'No tag';
 
 export function categoryReportItems(
   byCategory: readonly TransactionCategorySummary[]
@@ -50,22 +45,8 @@ export function categoryReportItems(
   }));
 }
 
-/** The untagged transactions become a row of their own, "No tag". */
-export function tagReportItems(
-  byTag: readonly TransactionTagSummary[]
-): ReportItem[] {
-  return byTag.map((item) => ({
-    key: item.tagId ?? NO_TAG_KEY,
-    name: item.name ?? NO_TAG_LABEL,
-    icon: null,
-    type: item.type,
-    total: item.total,
-    count: item.count,
-  }));
-}
-
 /**
- * The groups of one type, largest first by `metric` (ties by name, so the
+ * The categories of one type, largest first by `metric` (ties by name, so the
  * order is stable), each with its share of the type's total amount.
  */
 export function buildReportRows(
