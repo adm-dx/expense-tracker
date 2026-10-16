@@ -1,8 +1,17 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 import { CURRENCIES, type Currency } from '@expense-tracker/types';
 
-export class SummaryQuery {
+/** The period and currency of a summary; also the query of the report by tag. */
+export class SummaryPeriodQuery {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -29,4 +38,11 @@ export class SummaryQuery {
   @IsOptional()
   @IsIn(CURRENCIES)
   currency?: Currency;
+}
+
+export class SummaryQuery extends SummaryPeriodQuery {
+  /** Only transactions carrying this tag. */
+  @IsOptional()
+  @IsString()
+  tagId?: string;
 }

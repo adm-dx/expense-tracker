@@ -373,6 +373,32 @@ describe('POST /transactions body validation', () => {
     );
   });
 
+  it.each([
+    [
+      'more than one tag',
+      { tagIds: ['a', 'b'] },
+      'tagIds must contain no more than 1',
+    ],
+    [
+      'a tag list that is not an array',
+      { tagIds: 'a' },
+      'tagIds must be an array',
+    ],
+    ['an empty tag id', { tagIds: [''] }, 'tagIds should not be empty'],
+  ])('rejects %s', async (_label, extra, rule) => {
+    expectRule(await create({ ...validBody(), ...extra }), rule);
+  });
+
+  it('answers 404 for a tag that does not exist', async () => {
+    const response = await create({
+      ...validBody(),
+      tagIds: ['00000000-0000-4000-8000-000000000000'],
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.body.message).toBe('Tag not found');
+  });
+
   it('answers 404 for a category that does not exist', async () => {
     const response = await create({ ...validBody(), categoryId: 'missing' });
 
@@ -426,7 +452,7 @@ describe('PATCH /transactions/:id body validation', () => {
     expect(response.body).toMatchObject({ amount: '12.50', currency: 'EUR' });
   });
 
-  it.each(['amount', 'currency', 'type', 'date', 'categoryId'])(
+  it.each(['amount', 'currency', 'type', 'date', 'categoryId', 'tagIds'])(
     'rejects null for %s',
     async (field) => {
       const id = await createOne();

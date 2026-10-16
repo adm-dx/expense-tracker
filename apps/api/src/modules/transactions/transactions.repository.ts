@@ -13,11 +13,21 @@ export interface TransactionFilters {
   dateTo?: Date;
   type?: TransactionType;
   categoryId?: string;
+  tagId?: string;
 }
 
 export interface TransactionPagination {
   skip: number;
   take: number;
+}
+
+export interface TransactionTagSumRow {
+  type: TransactionType;
+  /** `null` for the transactions without a tag. */
+  tagId: string | null;
+  currency: Currency;
+  amount: Prisma.Decimal;
+  count: number;
 }
 
 export interface TransactionSumRow {
@@ -98,6 +108,70 @@ export class TransactionsRepository {
     }));
   }
 
+  /**
+   * Sums per (type, tag, currency). A transaction counts once under each of
+   * its tags (it has at most one today), and under `null` without any.
+   */
+  async sumByTypeAndTag(
+    userId: string,
+    filters: Pick<TransactionFilters, 'dateFrom' | 'dateTo'>
+  ): Promise<TransactionTagSumRow[]> {
+    const conditions = [Prisma.sql`t."userId" = ${userId}`];
+    if (filters.dateFrom) {
+      conditions.push(Prisma.sql`t."date" >= ${filters.dateFrom}`);
+    }
+    if (filters.dateTo) {
+      conditions.push(Prisma.sql`t."date" <= ${filters.dateTo}`);
+    }
+    const rows = await this.prisma.$queryRaw<
+      {
+        type: TransactionType;
+        tagId: string | null;
+        currency: string;
+        amount: Prisma.Decimal;
+        count: number;
+      }[]
+    >`
+      SELECT t."type", tag."tagId", t."currency",
+             SUM(t."amount") AS "amount", COUNT(*)::int AS "count"
+      FROM "transactions" t
+      LEFT JOIN LATERAL jsonb_array_elements_text(t."tagIds") AS tag("tagId") ON TRUE
+      WHERE ${Prisma.join(conditions, ' AND ')}
+      GROUP BY t."type", tag."tagId", t."currency"
+    `;
+    return rows.map((row) => ({
+      type: row.type,
+      tagId: row.tagId,
+      // The column is TEXT, but only validated codes are ever written to it.
+      currency: row.currency as Currency,
+      amount: new Prisma.Decimal(row.amount),
+      count: row.count,
+    }));
+  }
+
+  /** How many of the user's transactions carry each tag. */
+  async countByTag(userId: string): Promise<Record<string, number>> {
+    const rows = await this.prisma.$queryRaw<
+      { tagId: string; count: number }[]
+    >`
+      SELECT tag."tagId", COUNT(*)::int AS "count"
+      FROM "transactions" t, jsonb_array_elements_text(t."tagIds") AS tag("tagId")
+      WHERE t."userId" = ${userId}
+      GROUP BY tag."tagId"
+    `;
+    return Object.fromEntries(rows.map((row) => [row.tagId, row.count]));
+  }
+
+  /** Strips the tag from the user's transactions; returns how many changed. */
+  async removeTag(userId: string, tagId: string): Promise<number> {
+    return this.prisma.$executeRaw`
+      UPDATE "transactions"
+      SET "tagIds" = "tagIds" - ${tagId}::text
+      WHERE "userId" = ${userId}
+        AND "tagIds" @> ${JSON.stringify([tagId])}::jsonb
+    `;
+  }
+
   async countByCurrency(userId: string, currency: Currency): Promise<number> {
     return this.prisma.transaction.count({ where: { userId, currency } });
   }
@@ -129,6 +203,7 @@ export class TransactionsRepository {
     const where: Prisma.TransactionWhereInput = { userId };
     if (filters.type) where.type = filters.type;
     if (filters.categoryId) where.categoryId = filters.categoryId;
+    if (filters.tagId) where.tagIds = { array_contains: [filters.tagId] };
     if (filters.dateFrom || filters.dateTo) {
       const date: Prisma.DateTimeFilter = {};
       if (filters.dateFrom) date.gte = filters.dateFrom;

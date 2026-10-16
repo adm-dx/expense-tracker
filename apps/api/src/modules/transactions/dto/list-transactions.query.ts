@@ -34,6 +34,11 @@ export class ListTransactionsQuery {
   @IsString()
   categoryId?: string;
 
+  /** Only transactions carrying this tag. */
+  @IsOptional()
+  @IsString()
+  tagId?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

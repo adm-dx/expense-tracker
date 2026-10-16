@@ -6,9 +6,9 @@ datasource db {
 // Generated into the sources (gitignored) so `nest build` compiles it with
 // the app; import it from `src/generated/prisma/client`.
 generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  moduleFormat = "cjs"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
   // Extensionless relative imports, so ts-jest resolves them to the .ts files.
   importFileExtension = ""
 }
@@ -21,6 +21,7 @@ model User {
   isActive      Boolean        @default(true)
   lastLoginAt   DateTime?
   categories    Category[]
+  tags          Tag[]
   transactions  Transaction[]
   refreshTokens RefreshToken[]
   settings      UserSettings?
@@ -72,6 +73,22 @@ model Category {
   @@map("categories")
 }
 
+// A label the user puts on transactions. Transactions keep the ids in their
+// `tagIds` JSON array, so there is no foreign key: deleting a tag strips its
+// id from them, and readers ignore an id that names no tag.
+model Tag {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String   @db.VarChar(50)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("tags")
+}
+
 enum TransactionType {
   INCOME
   EXPENSE
@@ -88,11 +105,14 @@ model Transaction {
   date        DateTime
   categoryId  String
   category    Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  // JSON array of the user's tag ids (at most `MAX_TAGS_PER_TRANSACTION`).
+  tagIds      Json            @default("[]")
   userId      String
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime        @default(now())
 
   @@index([userId, date])
   @@index([categoryId])
+  @@index([tagIds(ops: JsonbPathOps)], type: Gin)
   @@map("transactions")
 }

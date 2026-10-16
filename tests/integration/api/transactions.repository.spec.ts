@@ -4,7 +4,12 @@ import { TransactionsRepository } from '@api/modules/transactions/transactions.r
 import type { TransactionFilters } from '@api/modules/transactions/transactions.repository';
 import { createTestApp } from '@tests/setup/app';
 import { disconnectDatabase, resetDatabase } from '@tests/setup/prisma';
-import { seedCategory, seedTransaction, seedUser } from '@tests/setup/seed';
+import {
+  seedCategory,
+  seedTag,
+  seedTransaction,
+  seedUser,
+} from '@tests/setup/seed';
 
 let app: INestApplication;
 let repository: TransactionsRepository;
@@ -409,4 +414,123 @@ describe('sumByTypeAndCategory', () => {
       expect(fromSummary.toFixed(2)).toBe(fromList.toFixed(2));
     }
   );
+});
+
+describe('tags', () => {
+  /** A user with one category, two tags and a tagged/untagged mix. */
+  async function seedTagged() {
+    const user = await seedUser();
+    const category = await seedCategory(user.id);
+    const trip = await seedTag(user.id, 'Trip');
+    const work = await seedTag(user.id, 'Work');
+    const base = {
+      userId: user.id,
+      categoryId: category.id,
+      date: '2026-09-10T00:00:00.000Z',
+    };
+    const rows = {
+      tripRsd: await seedTransaction({
+        ...base,
+        amount: '100.00',
+        tagIds: [trip.id],
+      }),
+      tripEur: await seedTransaction({
+        ...base,
+        amount: '2.50',
+        currency: 'EUR',
+        tagIds: [trip.id],
+      }),
+      workIncome: await seedTransaction({
+        ...base,
+        amount: '500.00',
+        type: TransactionType.INCOME,
+        tagIds: [work.id],
+      }),
+      untagged: await seedTransaction({ ...base, amount: '7.00' }),
+      tripOctober: await seedTransaction({
+        ...base,
+        amount: '1.00',
+        date: '2026-10-05T00:00:00.000Z',
+        tagIds: [trip.id],
+      }),
+    };
+    return { user, category, trip, work, rows };
+  }
+
+  it('filters the list and the category sums by tag', async () => {
+    const { user, trip, rows } = await seedTagged();
+
+    const { items, total } = await repository.findManyByUser(
+      user.id,
+      { ...SEPTEMBER, tagId: trip.id },
+      ALL
+    );
+    const sums = await repository.sumByTypeAndCategory(user.id, {
+      ...SEPTEMBER,
+      tagId: trip.id,
+    });
+
+    expect(ids(items).sort()).toEqual(
+      [rows.tripRsd.id, rows.tripEur.id].sort()
+    );
+    expect(total).toBe(2);
+    expect(sums.reduce((n, r) => n + r.count, 0)).toBe(2);
+  });
+
+  it('sums per type, tag and currency, with untagged rows under null', async () => {
+    const { user, trip, work } = await seedTagged();
+
+    const rows = await repository.sumByTypeAndTag(user.id, SEPTEMBER);
+
+    expect(
+      rows
+        .map((r) => [r.type, r.tagId, r.currency, r.amount.toFixed(2), r.count])
+        .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+    ).toEqual(
+      [
+        [TransactionType.EXPENSE, trip.id, 'EUR', '2.50', 1],
+        [TransactionType.EXPENSE, trip.id, 'RSD', '100.00', 1],
+        [TransactionType.EXPENSE, null, 'RSD', '7.00', 1],
+        [TransactionType.INCOME, work.id, 'RSD', '500.00', 1],
+      ].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+    );
+  });
+
+  it("counts each tag's transactions and ignores another user's", async () => {
+    const { user, trip, work } = await seedTagged();
+    const stranger = await seedUser();
+    await seedTransaction({
+      userId: stranger.id,
+      categoryId: (await seedCategory(stranger.id)).id,
+      tagIds: [trip.id],
+    });
+
+    expect(await repository.countByTag(user.id)).toEqual({
+      [trip.id]: 3,
+      [work.id]: 1,
+    });
+  });
+
+  it("strips a tag from the user's transactions only", async () => {
+    const { user, trip, work, rows } = await seedTagged();
+    const stranger = await seedUser();
+    const foreign = await seedTransaction({
+      userId: stranger.id,
+      categoryId: (await seedCategory(stranger.id)).id,
+      tagIds: [trip.id],
+    });
+
+    const updated = await repository.removeTag(user.id, trip.id);
+
+    expect(updated).toBe(3);
+    expect(
+      (await repository.findByIdForUser(rows.tripRsd.id, user.id))?.tagIds
+    ).toEqual([]);
+    expect(
+      (await repository.findByIdForUser(rows.workIncome.id, user.id))?.tagIds
+    ).toEqual([work.id]);
+    expect(
+      (await repository.findByIdForUser(foreign.id, stranger.id))?.tagIds
+    ).toEqual([trip.id]);
+  });
 });

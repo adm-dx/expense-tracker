@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { TagsModule } from './modules/tags/tags.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 import { WeatherModule } from './modules/weather/weather.module';
@@ -21,6 +22,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     UsersModule,
     AuthModule,
     CategoriesModule,
+    TagsModule,
     TransactionsModule,
     ExchangeRatesModule,
     WeatherModule,

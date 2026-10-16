@@ -11,6 +11,7 @@ import {
   GetExchangeRatesQuery,
 } from '@api/modules/exchange-rates/contracts';
 import { GetUserSettingsQuery } from '@api/modules/settings/contracts';
+import { GetUserTagsQuery } from '@api/modules/tags/contracts';
 import { TransactionsService } from '@api/modules/transactions/transactions.service';
 import { TransactionsRepository } from '@api/modules/transactions/transactions.repository';
 
@@ -24,6 +25,7 @@ function makeTransaction(overrides: Partial<Record<string, unknown>> = {}) {
     description: 'Lunch',
     date: new Date('2026-09-10T00:00:00.000Z'),
     categoryId: 'cat-1',
+    tagIds: [],
     createdAt: new Date('2026-09-10T00:00:00.000Z'),
     ...overrides,
   };
@@ -59,6 +61,11 @@ const SETTINGS: UserSettings = {
   currencies: ['EUR', 'RSD', 'HUF'],
 };
 
+const TAGS = [
+  { id: 'tag-1', name: 'Trip' },
+  { id: 'tag-2', name: 'Work' },
+];
+
 describe('TransactionsService', () => {
   let repository: jest.Mocked<TransactionsRepository>;
   let queryBus: { execute: jest.Mock };
@@ -74,6 +81,7 @@ describe('TransactionsService', () => {
       update: jest.fn(),
       delete: jest.fn(),
       sumByTypeAndCategory: jest.fn(),
+      sumByTypeAndTag: jest.fn(),
       countByCurrency: jest.fn(),
       convertCurrency: jest.fn(),
     } as unknown as jest.Mocked<TransactionsRepository>;
@@ -82,7 +90,11 @@ describe('TransactionsService', () => {
         .fn()
         .mockImplementation((query: unknown) =>
           Promise.resolve(
-            query instanceof GetUserSettingsQuery ? SETTINGS : RATES
+            query instanceof GetUserSettingsQuery
+              ? SETTINGS
+              : query instanceof GetUserTagsQuery
+                ? TAGS
+                : RATES
           )
         ),
     };
@@ -208,7 +220,48 @@ describe('TransactionsService', () => {
         description: 'Lunch',
         date: new Date('2026-09-10'),
         categoryId: 'cat-1',
+        tagIds: [],
       });
+    });
+
+    it('stores tags the user owns', async () => {
+      repository.findCategoryForUser.mockResolvedValue(makeCategory() as never);
+      repository.create.mockResolvedValue(
+        makeTransaction({ tagIds: ['tag-1'] }) as never
+      );
+
+      const result = await service.create('user-1', {
+        amount: 1,
+        currency: 'EUR',
+        type: TransactionType.EXPENSE,
+        date: '2026-09-10',
+        categoryId: 'cat-1',
+        tagIds: ['tag-1'],
+      });
+
+      expect(queryBus.execute).toHaveBeenCalledWith(
+        new GetUserTagsQuery('user-1')
+      );
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ tagIds: ['tag-1'] })
+      );
+      expect(result.tagIds).toEqual(['tag-1']);
+    });
+
+    it('throws NotFoundException for a tag the user does not own', async () => {
+      repository.findCategoryForUser.mockResolvedValue(makeCategory() as never);
+
+      await expect(
+        service.create('user-1', {
+          amount: 1,
+          currency: 'EUR',
+          type: TransactionType.EXPENSE,
+          date: '2026-09-10',
+          categoryId: 'cat-1',
+          tagIds: ['tag-of-someone-else'],
+        })
+      ).rejects.toThrow('Tag not found');
+      expect(repository.create).not.toHaveBeenCalled();
     });
 
     it('stores a blank description as null', async () => {
@@ -312,6 +365,40 @@ describe('TransactionsService', () => {
         service.update('user-1', 'tx-1', { currency: 'GBP' })
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update tags', () => {
+    it('clears the tags with an empty list without looking them up', async () => {
+      repository.findByIdForUser.mockResolvedValue(
+        makeTransaction({ tagIds: ['tag-1'] }) as never
+      );
+      repository.update.mockResolvedValue(makeTransaction() as never);
+
+      await service.update('user-1', 'tx-1', { tagIds: [] });
+
+      expect(queryBus.execute).not.toHaveBeenCalled();
+      expect(repository.update).toHaveBeenCalledWith('tx-1', { tagIds: [] });
+    });
+
+    it('rejects a foreign tag', async () => {
+      repository.findByIdForUser.mockResolvedValue(makeTransaction() as never);
+
+      await expect(
+        service.update('user-1', 'tx-1', { tagIds: ['tag-9'] })
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('reads anything but an array of strings as no tags', () => {
+      expect(
+        service.toPublic(makeTransaction({ tagIds: { bad: true } }) as never)
+          .tagIds
+      ).toEqual([]);
+      expect(
+        service.toPublic(makeTransaction({ tagIds: ['tag-1', 2] }) as never)
+          .tagIds
+      ).toEqual(['tag-1']);
     });
   });
 
@@ -715,6 +802,124 @@ describe('TransactionsService', () => {
         '0.01',
         '0.01',
       ]);
+    });
+  });
+
+  describe('tagSummary', () => {
+    it('converts per currency, merges per tag and names the tags', async () => {
+      repository.sumByTypeAndTag.mockResolvedValue([
+        {
+          type: TransactionType.EXPENSE,
+          tagId: 'tag-1',
+          currency: 'RSD',
+          amount: new Prisma.Decimal('1175.00'),
+          count: 2,
+        },
+        {
+          type: TransactionType.EXPENSE,
+          tagId: 'tag-1',
+          currency: 'EUR',
+          amount: new Prisma.Decimal('5.00'),
+          count: 1,
+        },
+        {
+          type: TransactionType.EXPENSE,
+          tagId: null,
+          currency: 'EUR',
+          amount: new Prisma.Decimal('3.00'),
+          count: 1,
+        },
+        {
+          type: TransactionType.INCOME,
+          tagId: 'tag-2',
+          currency: 'EUR',
+          amount: new Prisma.Decimal('100.00'),
+          count: 1,
+        },
+      ]);
+
+      const result = await service.tagSummary('user-1', {
+        dateFrom: '2026-09-01T00:00:00.000Z',
+        dateTo: '2026-09-30T23:59:59.999Z',
+        currency: 'EUR',
+      });
+
+      expect(repository.sumByTypeAndTag).toHaveBeenCalledWith('user-1', {
+        dateFrom: new Date('2026-09-01T00:00:00.000Z'),
+        dateTo: new Date('2026-09-30T23:59:59.999Z'),
+      });
+      expect(result.ratesDate).toEqual(RATES.date);
+      expect(result.byTag).toEqual([
+        {
+          tagId: 'tag-2',
+          name: 'Work',
+          type: TransactionType.INCOME,
+          total: '100.00',
+          count: 1,
+        },
+        {
+          tagId: 'tag-1',
+          name: 'Trip',
+          type: TransactionType.EXPENSE,
+          total: '15.00',
+          count: 3,
+        },
+        {
+          tagId: null,
+          name: null,
+          type: TransactionType.EXPENSE,
+          total: '3.00',
+          count: 1,
+        },
+      ]);
+    });
+
+    it('puts a tag that no longer exists under no tag', async () => {
+      repository.sumByTypeAndTag.mockResolvedValue([
+        {
+          type: TransactionType.EXPENSE,
+          tagId: 'deleted-tag',
+          currency: 'EUR',
+          amount: new Prisma.Decimal('2.00'),
+          count: 1,
+        },
+        {
+          type: TransactionType.EXPENSE,
+          tagId: null,
+          currency: 'EUR',
+          amount: new Prisma.Decimal('3.00'),
+          count: 1,
+        },
+      ]);
+
+      const result = await service.tagSummary('user-1', { currency: 'EUR' });
+
+      expect(result.ratesDate).toBeNull();
+      expect(result.byTag).toEqual([
+        {
+          tagId: null,
+          name: null,
+          type: TransactionType.EXPENSE,
+          total: '5.00',
+          count: 2,
+        },
+      ]);
+    });
+
+    it('asks for neither tags nor rates for an untagged single-currency period', async () => {
+      repository.sumByTypeAndTag.mockResolvedValue([
+        {
+          type: TransactionType.EXPENSE,
+          tagId: null,
+          currency: 'EUR',
+          amount: new Prisma.Decimal('3.00'),
+          count: 1,
+        },
+      ]);
+
+      await service.tagSummary('user-1', { currency: 'EUR' });
+
+      expect(queryBus.execute).not.toHaveBeenCalled();
     });
   });
 });
