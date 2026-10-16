@@ -51,4 +51,19 @@ describe('user-storage', () => {
 
     expect(listener).toHaveBeenCalledTimes(2);
   });
+
+  it('runs a listener added after the user is known right away', () => {
+    const { setStorageUser, onStorageUserChange } = load();
+    const early = jest.fn();
+    onStorageUserChange(early);
+    expect(early).not.toHaveBeenCalled();
+
+    // A store in a lazily loaded chunk registers after the session rehydrated.
+    setStorageUser('user-a');
+    const late = jest.fn();
+    onStorageUserChange(late);
+
+    expect(late).toHaveBeenCalledTimes(1);
+    expect(early).toHaveBeenCalledTimes(1);
+  });
 });
