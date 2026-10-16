@@ -3,6 +3,7 @@
 import type { Currency, Transaction } from '@expense-tracker/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
+import { X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { CategoryIcon, useCategoriesStore } from '@/entities/category';
 import { TagBadge, useTagsStore } from '@/entities/tag';
@@ -219,26 +220,40 @@ export function TransactionForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Tag</FormLabel>
-              <Select
-                value={field.value || NO_TAG}
-                onValueChange={(value) =>
-                  field.onChange(value === NO_TAG ? '' : value)
-                }
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value={NO_TAG}>No tag</SelectItem>
-                  {tags.map((tag) => (
-                    <SelectItem key={tag.id} value={tag.id}>
-                      <TagBadge name={tag.name} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select
+                  value={field.value || NO_TAG}
+                  onValueChange={(value) =>
+                    field.onChange(value === NO_TAG ? '' : value)
+                  }
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value={NO_TAG}>No tag</SelectItem>
+                    {tags.map((tag) => (
+                      <SelectItem key={tag.id} value={tag.id}>
+                        <TagBadge name={tag.name} />
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {field.value && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    aria-label="Remove tag"
+                    onClick={() => field.onChange('')}
+                  >
+                    <X aria-hidden />
+                  </Button>
+                )}
+              </div>
               {tags.length === 0 && (
                 <FormDescription>
                   Tags are optional; add them in the settings.
