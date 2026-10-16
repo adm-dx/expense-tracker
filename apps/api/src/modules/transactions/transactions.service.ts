@@ -24,6 +24,8 @@ import { GetUserSettingsQuery } from '../settings/contracts';
 import { GetUserTagsQuery, type UserTag } from '../tags/contracts';
 import {
   PublicTransaction,
+  TagHistoryReport,
+  TagMonthSummary,
   TransactionCategorySummary,
   TransactionSummary,
   TransactionTagReport,
@@ -40,7 +42,11 @@ import {
   DEFAULT_TRANSACTION_PAGE_SIZE,
   ListTransactionsQuery,
 } from './dto/list-transactions.query';
-import { SummaryPeriodQuery, SummaryQuery } from './dto/summary.query';
+import {
+  SummaryPeriodQuery,
+  SummaryQuery,
+  TagHistoryQuery,
+} from './dto/summary.query';
 
 const FOREIGN_KEY_VIOLATION = 'P2003';
 
@@ -55,6 +61,22 @@ function storedTagIds(transaction: Transaction): string[] {
   return Array.isArray(value)
     ? value.filter((id): id is string => typeof id === 'string')
     : [];
+}
+
+/** Every `YYYY-MM` from `first` to `last`, both included. */
+function monthsBetween(first: string, last: string): string[] {
+  const [lastYear, lastMonth] = last.split('-').map(Number) as [number, number];
+  let [year, month] = first.split('-').map(Number) as [number, number];
+  const result: string[] = [];
+  while (year < lastYear || (year === lastYear && month <= lastMonth)) {
+    result.push(`${year}-${String(month).padStart(2, '0')}`);
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return result;
 }
 
 @Injectable()
@@ -356,6 +378,90 @@ export class TransactionsService {
       dateFrom,
       dateTo,
       byTag,
+      currency,
+      ratesDate: rates?.date ?? null,
+    };
+  }
+
+  /**
+   * Income and expense of one tag per UTC month over all time, converted like
+   * `summary`. Months between the first and the last without transactions
+   * are zeros, so the chart shows the gaps.
+   */
+  async tagHistory(
+    userId: string,
+    query: TagHistoryQuery
+  ): Promise<TagHistoryReport> {
+    await this.assertTagsOwned(userId, [query.tagId]);
+    const currency = query.currency ?? DEFAULT_CURRENCY;
+
+    const rows = await this.transactionsRepository.sumByMonthForTag(
+      userId,
+      query.tagId
+    );
+    const rates = await this.loadRatesIfNeeded(
+      rows.map((row) => row.currency),
+      currency
+    );
+
+    // Rounded only at the end, so the totals don't drift.
+    let totalIncome = new Prisma.Decimal(0);
+    let totalExpense = new Prisma.Decimal(0);
+    const months = new Map<
+      string,
+      {
+        income: Prisma.Decimal;
+        expense: Prisma.Decimal;
+        incomeCount: number;
+        expenseCount: number;
+      }
+    >();
+    for (const row of rows) {
+      const amount = this.convert(row.amount, row.currency, currency, rates);
+      let month = months.get(row.month);
+      if (!month) {
+        month = {
+          income: new Prisma.Decimal(0),
+          expense: new Prisma.Decimal(0),
+          incomeCount: 0,
+          expenseCount: 0,
+        };
+        months.set(row.month, month);
+      }
+      if (row.type === TransactionType.INCOME) {
+        totalIncome = totalIncome.plus(amount);
+        month.income = month.income.plus(amount);
+        month.incomeCount += row.count;
+      } else {
+        totalExpense = totalExpense.plus(amount);
+        month.expense = month.expense.plus(amount);
+        month.expenseCount += row.count;
+      }
+    }
+
+    const keys = [...months.keys()].sort();
+    const byMonth =
+      keys.length === 0
+        ? []
+        : monthsBetween(keys[0]!, keys[keys.length - 1]!).map(
+            (key): TagMonthSummary => {
+              const month = months.get(key);
+              return {
+                month: key,
+                income: (month?.income ?? new Prisma.Decimal(0)).toFixed(2),
+                expense: (month?.expense ?? new Prisma.Decimal(0)).toFixed(2),
+                incomeCount: month?.incomeCount ?? 0,
+                expenseCount: month?.expenseCount ?? 0,
+              };
+            }
+          );
+
+    return {
+      tagId: query.tagId,
+      totalIncome: totalIncome.toFixed(2),
+      totalExpense: totalExpense.toFixed(2),
+      balance: totalIncome.minus(totalExpense).toFixed(2),
+      byMonth,
       currency,
       ratesDate: rates?.date ?? null,
     };

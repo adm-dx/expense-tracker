@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import type {
   Category,
   Tag,
+  TagHistoryReport,
   Transaction,
   TransactionTagReport,
 } from '@expense-tracker/types';
@@ -227,6 +228,96 @@ describe('tags on transactions', () => {
     expect(page.items.map((t) => t.id)).toEqual([tagged.id]);
     expect(page.total).toBe(1);
     expect(summary.totalExpense).toBe('30.00');
+  });
+});
+
+describe('GET /transactions/summary/by-tag/history', () => {
+  function history(tagId: string, u: TestUser = user) {
+    return server()
+      .get(`/transactions/summary/by-tag/history?tagId=${tagId}`)
+      .set(...bearer(u));
+  }
+
+  it("sums the tag's transactions per UTC month over all time, gaps as zeros", async () => {
+    const trip = await createTag('Trip');
+    const other = await createTag('Other');
+    await createTransaction({
+      amount: 10.1,
+      date: '2025-12-31T23:59:59.000Z',
+      tagIds: [trip.id],
+    });
+    await createTransaction({
+      amount: 0.2,
+      date: '2025-12-01T00:00:00.000Z',
+      tagIds: [trip.id],
+    });
+    await createTransaction({
+      amount: 500,
+      type: 'INCOME',
+      date: '2026-02-01T00:00:00.000Z',
+      tagIds: [trip.id],
+    });
+    // Neither counts: another tag, no tag.
+    await createTransaction({ amount: 7, tagIds: [other.id] });
+    await createTransaction({ amount: 8 });
+
+    const result = await expectJson<TagHistoryReport>(history(trip.id));
+
+    expect(result).toEqual({
+      tagId: trip.id,
+      totalIncome: '500.00',
+      totalExpense: '10.30',
+      balance: '489.70',
+      byMonth: [
+        {
+          month: '2025-12',
+          income: '0.00',
+          expense: '10.30',
+          incomeCount: 0,
+          expenseCount: 2,
+        },
+        {
+          month: '2026-01',
+          income: '0.00',
+          expense: '0.00',
+          incomeCount: 0,
+          expenseCount: 0,
+        },
+        {
+          month: '2026-02',
+          income: '500.00',
+          expense: '0.00',
+          incomeCount: 1,
+          expenseCount: 0,
+        },
+      ],
+      currency: 'EUR',
+      ratesDate: null,
+    });
+  });
+
+  it('is empty for a tag without transactions', async () => {
+    const trip = await createTag('Trip');
+
+    const result = await expectJson<TagHistoryReport>(history(trip.id));
+
+    expect(result.byMonth).toEqual([]);
+    expect(result.totalExpense).toBe('0.00');
+  });
+
+  it("answers 404 for another user's tag", async () => {
+    const stranger = await registerUser(app);
+    const theirs = await createTag('Theirs', stranger);
+
+    expect((await history(theirs.id)).status).toBe(404);
+  });
+
+  it('answers 400 without a tag', async () => {
+    const response = await server()
+      .get('/transactions/summary/by-tag/history')
+      .set(...bearer(user));
+
+    expect(response.status).toBe(400);
   });
 });
 

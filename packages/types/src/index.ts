@@ -328,6 +328,39 @@ export interface TransactionTagReport {
   ratesDate: string | null;
 }
 
+export interface TagHistoryParams {
+  tagId: string;
+  /** Currency of the totals; defaults to EUR. */
+  currency?: Currency;
+}
+
+/** Income and expense of one UTC month. */
+export interface TagMonthSummary {
+  /** `YYYY-MM`. */
+  month: string;
+  income: string;
+  expense: string;
+  incomeCount: number;
+  expenseCount: number;
+}
+
+/** Every transaction with one tag, whenever it was, per month. */
+export interface TagHistoryReport {
+  tagId: string;
+  totalIncome: string;
+  totalExpense: string;
+  balance: string;
+  /**
+   * Every month from the tag's first transaction to its last, oldest first;
+   * a month in between without any has zeros. Empty without transactions.
+   */
+  byMonth: TagMonthSummary[];
+  /** The currency of every total. */
+  currency: Currency;
+  /** Date of the exchange rates used; null when no conversion was needed. */
+  ratesDate: string | null;
+}
+
 /** Today's rates: one `base` unit costs `rates[code]` of each currency. */
 export interface ExchangeRates {
   base: Currency;

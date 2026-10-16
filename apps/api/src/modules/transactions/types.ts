@@ -76,3 +76,24 @@ export interface TransactionTagReport {
   /** Date of the rates used; null when no conversion was needed. */
   ratesDate: Date | null;
 }
+
+export interface TagMonthSummary {
+  /** `YYYY-MM`, a UTC month. */
+  month: string;
+  income: string;
+  expense: string;
+  incomeCount: number;
+  expenseCount: number;
+}
+
+export interface TagHistoryReport {
+  tagId: string;
+  totalIncome: string;
+  totalExpense: string;
+  balance: string;
+  /** From the first month with a transaction to the last, gaps as zeros. */
+  byMonth: TagMonthSummary[];
+  currency: Currency;
+  /** Date of the rates used; null when no conversion was needed. */
+  ratesDate: Date | null;
+}
