@@ -163,6 +163,10 @@ npm run dev:api       # Только бэкенд — http://localhost:3001
 
 Для полной работы нужны оба приложения.
 
+## Деплой
+
+Продакшен на VPS под путём `/expense-tracker` (nginx, pm2, Postgres в Docker): пошагово в [docs/deploy.md](docs/deploy.md). Обновление на сервере: `scripts/deploy.sh`.
+
 ## Полезные команды
 
 ### База данных
