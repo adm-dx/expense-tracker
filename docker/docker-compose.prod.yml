@@ -1,0 +1,9 @@
+# Production overrides for the `postgres` service (see docs/deploy.md).
+# The password comes from the repo-root .env:
+#   docker compose --env-file .env -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d postgres
+# It is applied only when the volume is first created.
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-expense_tracker}

@@ -261,6 +261,10 @@ Current models in `apps/api/prisma/schema.prisma`:
    - `EXCHANGE_RATES_URL`: exchange rates API (default `https://open.er-api.com/v6`; no key needed)
    - `WEATHER_URL`, `GEOCODING_URL`: Open-Meteo and Nominatim (defaults `https://api.open-meteo.com/v1`, `https://nominatim.openstreetmap.org`; no keys)
 
+## Deployment
+
+Production runs on a VPS at `https://rmillerqa.tech/expense-tracker`; the steps are in `docs/deploy.md`. nginx proxies `/expense-tracker/api/` to the API (prefix stripped) and `/expense-tracker` to `next start` (prefix kept: `next.config.ts` sets `basePath` from `NEXT_PUBLIC_BASE_PATH`, needed by both `next build` and `next start`, so the pm2 config reads it from `.env`; unset locally). pm2 runs both from `ecosystem.config.cjs`, Postgres runs with `docker/docker-compose.prod.yml` on top of the dev compose file (password from `POSTGRES_PASSWORD` in `.env`), and `scripts/deploy.sh` pulls, builds, migrates and reloads. Because of `basePath`, never hard-code a root path in the web app (`window.location = '/login'`, `<img src="/x.png">`); go through `Link`/`router` or prefix it.
+
 ## Important Notes
 
 - **Always run Prisma commands from `apps/api`**, not from root
