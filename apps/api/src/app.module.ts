@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { RATE_LIMIT_OPTIONS } from './rate-limit';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -18,6 +21,7 @@ import { SettingsModule } from './modules/settings/settings.module';
       envFilePath: ['../../.env', '.env'],
     }),
     CqrsModule.forRoot(),
+    ThrottlerModule.forRoot(RATE_LIMIT_OPTIONS),
     PrismaModule,
     UsersModule,
     AuthModule,
@@ -29,6 +33,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     SettingsModule,
   ],
   controllers: [],
-  providers: [],
+  // Per client IP; `trust proxy` in app.config.ts makes that nginx's client.
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

@@ -1,4 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { RATE_LIMITS } from '../../rate-limit';
 import type { Place } from '@expense-tracker/types';
 import type { CurrentWeatherResult } from './contracts';
 import { CurrentWeatherQuery } from './dto/current-weather.query';
@@ -9,6 +11,7 @@ import { WeatherService } from './weather.service';
 export class WeatherController {
   constructor(private readonly weatherService: WeatherService) {}
 
+  @Throttle({ default: RATE_LIMITS.weather })
   @Get()
   get(@Query() query: CurrentWeatherQuery): Promise<CurrentWeatherResult> {
     return this.weatherService.getCurrent(query.lat, query.lon, {
@@ -17,6 +20,7 @@ export class WeatherController {
   }
 
   /** Finds a town by name, for the location setting. */
+  @Throttle({ default: RATE_LIMITS.placeSearch })
   @Get('places')
   searchPlaces(@Query() query: SearchPlacesQuery): Promise<Place[]> {
     return this.weatherService.searchPlaces(query.q);

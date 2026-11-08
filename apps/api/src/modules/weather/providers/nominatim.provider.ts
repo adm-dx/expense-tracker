@@ -10,6 +10,12 @@ export const GEOCODING_USER_AGENT =
 const TIMEOUT_MS = 5000;
 /** Nominatim allows at most one request a second per application. */
 export const MIN_REQUEST_INTERVAL_MS = 1000;
+/**
+ * Requests waiting for their turn, at most. At one a second, the last one
+ * waits this many seconds; beyond it a request fails at once instead of
+ * letting one caller stall everyone's lookups.
+ */
+export const MAX_QUEUED_REQUESTS = 10;
 /** How many places `search` asks for. */
 export const MAX_SEARCH_RESULTS = 5;
 
@@ -64,6 +70,7 @@ export class NominatimProvider extends GeocodingProvider {
   private readonly baseUrl: string;
   private queue: Promise<unknown> = Promise.resolve();
   private lastRequestAt = Number.NEGATIVE_INFINITY;
+  private queued = 0;
 
   constructor(configService: ConfigService) {
     super();
@@ -79,9 +86,17 @@ export class NominatimProvider extends GeocodingProvider {
     return this.throttled(() => this.requestSearch(query));
   }
 
-  /** Runs requests one at a time, at least a second apart. */
+  /**
+   * Runs requests one at a time, at least a second apart; rejects at once
+   * when `MAX_QUEUED_REQUESTS` are already waiting.
+   */
   private throttled<T>(task: () => Promise<T>): Promise<T> {
+    if (this.queued >= MAX_QUEUED_REQUESTS) {
+      return Promise.reject(new Error('Geocoding queue is full'));
+    }
+    this.queued += 1;
     const run = this.queue.then(async () => {
+      this.queued -= 1;
       const wait = this.lastRequestAt + MIN_REQUEST_INTERVAL_MS - Date.now();
       if (wait > 0) {
         await new Promise((resolve) => setTimeout(resolve, wait));
