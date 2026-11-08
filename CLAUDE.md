@@ -234,6 +234,8 @@ The web app uses Next.js 16 App Router as the routing shell, with everything els
 
 - `transpilePackages: ['@expense-tracker/types']` enables monorepo package usage
 - `reactStrictMode: true` for development checks
+- `poweredByHeader: false`, and `headers()` adds `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` (geolocation for the weather widget only) and HSTS to every response
+- **CSP:** `src/proxy.ts` sets a `Content-Security-Policy` per request with a fresh nonce (`buildContentSecurityPolicy` in `shared/config/security-headers.ts`): `script-src 'self' 'nonce-…' 'strict-dynamic'` (plus `'unsafe-eval'` in dev), inline styles allowed, `connect-src` only `'self'` and the `NEXT_PUBLIC_API_URL` origin, `frame-ancestors 'none'`. Next puts the nonce on its own scripts; the root layout reads `x-nonce` with `headers()` for the theme script, which makes every page dynamically rendered (the price of the nonce, see Next's CSP guide). A new inline `<script>` needs `nonce`, a new origin the browser calls needs `connect-src`. Zod is imported from `@/shared/lib/zod` (ESLint enforces it), which sets `jitless`, since its `new Function` probe would be reported as a violation
 - Next.js 16 has breaking changes versus older versions; `apps/web/AGENTS.md` (written by `next dev`, pulled in by `apps/web/CLAUDE.md`) says to read the bundled guides in `node_modules/next/dist/docs/` (hoisted to the repo root) before using an unfamiliar API.
 
 ### Database Schema
