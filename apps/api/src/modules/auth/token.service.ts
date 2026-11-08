@@ -91,7 +91,14 @@ export class TokenService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    await this.refreshTokensRepository.revoke(record.id);
+    // The check above and this write are apart: of two refreshes racing with
+    // one token, only the one that revokes it gets a new pair.
+    const revoked = await this.refreshTokensRepository.revokeIfActive(
+      record.id
+    );
+    if (!revoked) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
     return this.issueTokens(user);
   }
 

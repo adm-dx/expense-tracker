@@ -4,6 +4,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { RATE_LIMIT_OPTIONS } from './rate-limit';
+import { validateEnv } from './validate-env';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -19,6 +20,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['../../.env', '.env'],
+      validate: validateEnv,
     }),
     CqrsModule.forRoot(),
     ThrottlerModule.forRoot(RATE_LIMIT_OPTIONS),

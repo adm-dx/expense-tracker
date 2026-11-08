@@ -28,7 +28,7 @@ sudo usermod -aG docker $USER   # затем перелогиньтесь
 
 npm install -g pm2
 
-# Firewall: снаружи только SSH и HTTP(S); API слушает все интерфейсы
+# Firewall: снаружи только SSH и HTTP(S). API и Next слушают только 127.0.0.1, Postgres тоже
 sudo ufw allow OpenSSH && sudo ufw allow 'Nginx Full' && sudo ufw enable
 ```
 
@@ -54,6 +54,8 @@ POSTGRES_DB="expense_tracker"
 JWT_ACCESS_SECRET="<секрет 1>"
 JWT_REFRESH_SECRET="<секрет 2>"
 ```
+
+С `NODE_ENV=production` (его ставит pm2) API не запустится, если JWT-секреты короче 32 символов, совпадают друг с другом или остались из `.env.example`, или если в `DATABASE_URL` пароль `dev_password`. Причина в `pm2 logs et-api`.
 
 Если пароль содержит `/`, `+` или `=`, в `DATABASE_URL` его нужно URL-кодировать. Проще сгенерировать без них: `openssl rand -hex 32`.
 

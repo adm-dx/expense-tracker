@@ -24,6 +24,15 @@ import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
 const BCRYPT_SALT_ROUNDS = 10;
+/**
+ * Compared against when the email is unknown, so a login for a missing
+ * account takes as long as one with a wrong password and its timing doesn't
+ * tell which emails are registered.
+ */
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(
+  'no account has this password',
+  BCRYPT_SALT_ROUNDS
+);
 
 @Injectable()
 export class AuthService {
@@ -67,9 +76,10 @@ export class AuthService {
       UserCredentials | null
     >(new GetUserCredentialsQuery(dto.email));
 
-    const passwordMatches = credentials
-      ? await bcrypt.compare(dto.password, credentials.passwordHash)
-      : false;
+    const passwordMatches = await bcrypt.compare(
+      dto.password,
+      credentials?.passwordHash ?? DUMMY_PASSWORD_HASH
+    );
 
     if (!credentials || !credentials.isActive || !passwordMatches) {
       throw new UnauthorizedException('Invalid credentials');
