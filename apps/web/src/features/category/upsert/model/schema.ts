@@ -1,5 +1,5 @@
 import { CATEGORY_ICONS } from '@expense-tracker/types';
-import { z } from 'zod';
+import { z } from '@/shared/lib/zod';
 
 export const categorySchema = z.object({
   name: z

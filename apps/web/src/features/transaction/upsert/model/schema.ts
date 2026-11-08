@@ -1,5 +1,5 @@
 import { CURRENCIES } from '@expense-tracker/types';
-import { z } from 'zod';
+import { z } from '@/shared/lib/zod';
 
 const MAX_AMOUNT = 9_999_999_999.99;
 
