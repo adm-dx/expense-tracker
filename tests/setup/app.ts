@@ -3,8 +3,10 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { AuthResponse, Currency } from '@expense-tracker/types';
 import { sign, type SignOptions } from 'jsonwebtoken';
+import { getOptionsToken } from '@nestjs/throttler';
 import { AppModule } from '@api/app.module';
 import { configureApp } from '@api/app.config';
+import { RATE_LIMIT_OPTIONS } from '@api/rate-limit';
 import { ExchangeRatesProvider } from '@api/modules/exchange-rates/providers/exchange-rates.provider';
 import { GeocodingProvider } from '@api/modules/weather/providers/geocoding.provider';
 import { WeatherProvider } from '@api/modules/weather/providers/weather.provider';
@@ -13,24 +15,32 @@ import { FakeExchangeRatesProvider } from './exchange-rates';
 import { expectJson, expectStatus } from './http';
 import { FakeGeocodingProvider, FakeWeatherProvider } from './weather';
 
-/** Fakes for the weather module's outside services, see `createTestApp`. */
-export interface WeatherFakes {
+/** Options of `createTestApp`. */
+export interface TestAppOptions {
+  /** Fakes for the weather module's outside services. */
   weatherProvider?: WeatherProvider;
   geocodingProvider?: GeocodingProvider;
+  /**
+   * Enforce the rate limits. Off by default: every request of a test file
+   * comes from one IP, and a suite logs in far more often than a person.
+   */
+  rateLimit?: boolean;
 }
 
 /**
  * Boots the real application (guards, pipes, controllers, repositories) with
  * the same global configuration as `main.ts`. The only stand-ins are the
  * providers of exchange rates, weather and place names, so tests never reach
- * the network; pass your own fakes to control them.
+ * the network; pass your own fakes to control them. Rate limits are off
+ * unless `rateLimit` is set.
  */
 export async function createTestApp(
   ratesProvider: ExchangeRatesProvider = new FakeExchangeRatesProvider(),
   {
     weatherProvider = new FakeWeatherProvider(),
     geocodingProvider = new FakeGeocodingProvider(),
-  }: WeatherFakes = {}
+    rateLimit = false,
+  }: TestAppOptions = {}
 ): Promise<INestApplication> {
   // Last line of defence: the app's own Prisma client reads DATABASE_URL.
   assertTestDatabase(process.env.DATABASE_URL ?? '');
@@ -44,6 +54,8 @@ export async function createTestApp(
     .useValue(weatherProvider)
     .overrideProvider(GeocodingProvider)
     .useValue(geocodingProvider)
+    .overrideProvider(getOptionsToken())
+    .useValue({ ...RATE_LIMIT_OPTIONS, skipIf: () => !rateLimit })
     .compile();
   const app = moduleRef.createNestApplication();
   configureApp(app);

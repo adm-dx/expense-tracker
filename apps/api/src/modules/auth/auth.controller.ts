@@ -6,6 +6,8 @@ import {
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { RATE_LIMITS } from '../../rate-limit';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -22,12 +24,14 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: RATE_LIMITS.credentials })
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Public()
+  @Throttle({ default: RATE_LIMITS.credentials })
   @HttpCode(200)
   @Post('login')
   login(@Body() dto: LoginDto) {
@@ -35,6 +39,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: RATE_LIMITS.refresh })
   @HttpCode(200)
   @Post('refresh')
   refresh(@Body() dto: RefreshTokenDto) {
@@ -48,6 +53,7 @@ export class AuthController {
     return this.authService.logout(dto.refreshToken);
   }
 
+  @Throttle({ default: RATE_LIMITS.credentials })
   @HttpCode(200)
   @Post('change-password')
   changePassword(

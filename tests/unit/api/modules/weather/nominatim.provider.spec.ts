@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   DEFAULT_GEOCODING_URL,
   GEOCODING_USER_AGENT,
+  MAX_QUEUED_REQUESTS,
   MAX_SEARCH_RESULTS,
   MIN_REQUEST_INTERVAL_MS,
   NominatimProvider,
@@ -133,6 +134,30 @@ describe('NominatimProvider', () => {
     const next = provider.reverse(0, 0);
     await jest.advanceTimersByTimeAsync(MIN_REQUEST_INTERVAL_MS);
 
+    await expect(next).resolves.toBe('Belgrade, RS');
+  });
+
+  it('rejects at once when MAX_QUEUED_REQUESTS are already waiting', async () => {
+    jest.useFakeTimers({ now: new Date('2026-09-26T10:00:00.000Z') });
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(BELGRADE)));
+    const provider = makeProvider();
+    await provider.reverse(0, 0);
+
+    const waiting = Array.from({ length: MAX_QUEUED_REQUESTS }, (_, i) =>
+      provider.reverse(i, i)
+    );
+    await expect(provider.search('belgrade')).rejects.toThrow(
+      'Geocoding queue is full'
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Once the queue drains, requests are accepted again.
+    await jest.advanceTimersByTimeAsync(
+      MIN_REQUEST_INTERVAL_MS * MAX_QUEUED_REQUESTS
+    );
+    await Promise.all(waiting);
+    const next = provider.reverse(0, 0);
+    await jest.advanceTimersByTimeAsync(MIN_REQUEST_INTERVAL_MS);
     await expect(next).resolves.toBe('Belgrade, RS');
   });
 
