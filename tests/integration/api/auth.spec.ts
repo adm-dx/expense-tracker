@@ -287,6 +287,19 @@ describe('refresh tokens', () => {
     expect(reuse.status).toBe(401);
   });
 
+  it('gives a new pair to only one of several refreshes racing with one token', async () => {
+    const user = await registerUser(app);
+
+    const responses = await Promise.all(
+      Array.from({ length: 20 }, () => refresh(user.refreshToken))
+    );
+
+    // Enough at once that, without an atomic revoke, several get through.
+    const statuses = responses.map((response) => response.status);
+    expect(statuses.filter((status) => status === 200)).toHaveLength(1);
+    expect(statuses.filter((status) => status === 401)).toHaveLength(19);
+  });
+
   it('treats reuse of a rotated token as theft and revokes the whole family', async () => {
     const user = await registerUser(app);
     const rotated = await refresh(user.refreshToken).expect(200);

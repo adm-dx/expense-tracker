@@ -33,6 +33,18 @@ export class RefreshTokensRepository {
   }
 
   /**
+   * Revokes the token unless it already is, in one statement; `false` when
+   * it was revoked first, e.g. by a concurrent refresh with the same token.
+   */
+  async revokeIfActive(id: string): Promise<boolean> {
+    const { count } = await this.prisma.refreshToken.updateMany({
+      where: { id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return count === 1;
+  }
+
+  /**
    * Removes every refresh token of the user. Unlike revoking, a deleted
    * token is simply unknown when used, so it doesn't look like a replayed
    * one and doesn't trigger `revokeAllForUser` on the tokens issued after.

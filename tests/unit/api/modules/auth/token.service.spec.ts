@@ -50,6 +50,7 @@ describe('TokenService', () => {
       findById: jest.fn(),
       updateTokenHash: jest.fn(),
       revoke: jest.fn(),
+      revokeIfActive: jest.fn().mockResolvedValue(true),
       revokeAllForUser: jest.fn(),
       deleteAllForUser: jest.fn().mockResolvedValue({ count: 0 }),
     } as unknown as jest.Mocked<RefreshTokensRepository>;
@@ -86,11 +87,32 @@ describe('TokenService', () => {
 
       const result = await service.rotate('old-refresh-token');
 
-      expect(refreshTokensRepository.revoke).toHaveBeenCalledWith('rt-1');
+      expect(refreshTokensRepository.revokeIfActive).toHaveBeenCalledWith(
+        'rt-1'
+      );
       expect(result).toEqual({
         accessToken: 'new-access-token',
         refreshToken: 'new-refresh-token',
       });
+    });
+
+    it('issues nothing when a concurrent refresh revoked the token first', async () => {
+      jwtService.verifyAsync.mockResolvedValue({ sub: 'user-1', jti: 'rt-1' });
+      refreshTokensRepository.findById.mockResolvedValue({
+        id: 'rt-1',
+        userId: 'user-1',
+        tokenHash: hash('old-refresh-token'),
+        expiresAt: new Date(Date.now() + 60_000),
+        revokedAt: null,
+        createdAt: new Date(),
+      });
+      queryBus.execute.mockResolvedValue(makePublicUser());
+      refreshTokensRepository.revokeIfActive.mockResolvedValue(false);
+
+      await expect(service.rotate('old-refresh-token')).rejects.toBeInstanceOf(
+        UnauthorizedException
+      );
+      expect(refreshTokensRepository.create).not.toHaveBeenCalled();
     });
 
     it('rejects an expired refresh token', async () => {

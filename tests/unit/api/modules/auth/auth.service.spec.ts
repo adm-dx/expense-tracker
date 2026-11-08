@@ -18,6 +18,17 @@ import {
 import { CreateDefaultCategoriesCommand } from '@api/modules/categories/contracts';
 import { CreateDefaultSettingsCommand } from '@api/modules/settings/contracts';
 
+// The real bcrypt, with `compare` observable (an ES module export can't be spied on).
+jest.mock('bcryptjs', () => {
+  const actual = jest.requireActual<typeof import('bcryptjs')>('bcryptjs');
+  return {
+    ...actual,
+    compare: jest.fn((password: string, hash: string) =>
+      actual.compare(password, hash)
+    ),
+  };
+});
+
 const FIXED_DATE = new Date('2026-01-01T00:00:00.000Z');
 
 function makePublicUser(overrides: Partial<Record<string, unknown>> = {}) {
@@ -195,6 +206,21 @@ describe('AuthService', () => {
         service.login({ email: 'ghost@example.com', password: 'whatever' })
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(eventBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('still runs bcrypt for an unknown email, so the timing gives nothing away', async () => {
+      queryBus.execute.mockResolvedValueOnce(null);
+      const compare = jest.mocked(bcrypt.compare);
+      compare.mockClear();
+
+      await expect(
+        service.login({ email: 'ghost@example.com', password: 'whatever' })
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      expect(compare).toHaveBeenCalledWith(
+        'whatever',
+        expect.stringMatching(/^\$2[aby]\$10\$/)
+      );
     });
   });
 
